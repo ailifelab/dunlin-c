@@ -180,7 +180,7 @@ struct ExtensionsView:View {
         GroupBox {
           VStack(alignment:.leading,spacing:12){
             HStack {VStack(alignment:.leading,spacing:5){Text(row.selected?.manifest.displayName ?? row.package).font(.headline);Text(row.selected?.manifest.engines.host ?? "").font(.caption).foregroundStyle(.secondary)};Spacer();Text(row.active ? "已启用":row.enabled ? "等待重新启用":"已停用").font(.caption).foregroundStyle(.secondary);Toggle("启用",isOn:Binding(get:{row.active},set:{bind(row,version:row.version,enable:$0)})).toggleStyle(.switch).labelsHidden().disabled(busy || (!row.active && !(row.selected?.reason.isEmpty ?? false)))}
-            HStack {Picker("版本",selection:Binding(get:{row.version},set:{bind(row,version:$0,enable:row.active)})){ForEach(row.versions){Text($0.version+($0.quarantined ? " · 已隔离":"")).tag($0.version)}}.fixedSize();Spacer();Button("更新…"){shop=true};if row.enabled && !row.active && row.selected?.reason.isEmpty == true {Button("重新启用"){bind(row,version:row.version,enable:true)}};if row.selected?.quarantined == true {Button("重新检查…"){recover(row)}}}
+            HStack {Picker("版本",selection:Binding(get:{row.version},set:{bind(row,version:$0,enable:row.active)})){ForEach(row.versions){Text($0.version+($0.quarantined ? " · 已隔离":"")).tag($0.version)}}.fixedSize();Spacer();Button("更新…"){shop=true};Button("卸载…",role:.destructive){uninstall(row)}.disabled(busy);if row.enabled && !row.active && row.selected?.reason.isEmpty == true {Button("重新启用"){bind(row,version:row.version,enable:true)}};if row.selected?.quarantined == true {Button("重新检查…"){recover(row)}}}
             if let selected=row.selected,!selected.reason.isEmpty {Label(extensionReason(selected.reason),systemImage:"exclamationmark.circle").font(.caption).foregroundStyle(.orange)}
             ForEach(contributions.filter{$0.plugin==row.runtimeID && $0.kind=="command"}){item in
               Button(item.title ?? item.command ?? "扩展命令"){command=ExtensionCommandSelection(source:row.source,package:row.package,command:item.command ?? "",title:item.title ?? row.package)}.disabled(!row.active)
@@ -206,6 +206,10 @@ struct ExtensionsView:View {
   private func reloadFaults(){store.extensionRequest(["op":"extensions.faults"],as:[ExtensionFault].self){r in faults=r.data ?? []}}
   private func importLocal(){let p=NSOpenPanel();p.canChooseDirectories=true;p.canChooseFiles=false;p.allowsMultipleSelection=false;guard p.runModal() == .OK,let url=p.url else{return};store.extensionRequest(["op":"extensions.import","path":url.path],as:[ExtensionRow].self){r in if r.ok {rows=r.data ?? [];error=""}else{error=r.error ?? "导入失败"}}}
   private func configurePython(){busy=true;store.extensionRequest(["op":"python.configure","executable":pythonPath],as:NoData.self){r in busy=false;error=r.error ?? "";reload()}}
+  private func uninstall(_ row:ExtensionRow){
+    let alert=NSAlert();alert.messageText="卸载“\(row.selected?.manifest.displayName ?? row.package)”？";alert.informativeText="将停用插件并移除所有已下载版本的安装记录及配置。历史错误与执行记录保留；插件已产生的外部效果需要单独处理。";alert.addButton(withTitle:"卸载");alert.addButton(withTitle:"取消");alert.buttons[0].keyEquivalent="";guard alert.runModal() == .alertFirstButtonReturn else{return}
+    busy=true;store.extensionRequest(["op":"extensions.uninstall","source":row.source,"package":row.package],as:[ExtensionRow].self){r in busy=false;error=r.error ?? "";reload();store.refreshThemes();store.refreshPluginPages()}
+  }
   private func recover(_ row:ExtensionRow){
     let a=NSAlert();a.messageText="重新检查这个插件？";a.informativeText="检查版本内容与依赖后解除隔离，仍需单独启用。不会重新执行之前失败的命令；有未确认外部效果的插件会继续阻止恢复。";a.addButton(withTitle:"检查版本");a.addButton(withTitle:"取消");guard a.runModal() == .alertFirstButtonReturn else{return}
     store.extensionRequest(["op":"extensions.recover","source":row.source,"package":row.package,"version":row.version],as:[ExtensionRow].self){r in if r.ok{rows=r.data ?? []}else{error=r.error ?? "检查失败"}}

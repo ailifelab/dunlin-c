@@ -51,3 +51,12 @@ J *dc_package_snapshot(dc_store *s,const char *source){
  if(ok){if(!rename(staging,final)){int p=open(parent,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);if(p<0||fsync(p))ok=0;if(p>=0)close(p);}else if(errno!=EEXIST&&errno!=ENOTEMPTY)ok=0;else ok=dc_package_verify(final,state.files);}
  if(dest>=0){if(access(staging,F_OK)==0){clear(dest);rmdir(staging);}close(dest);}J *out=NULL;if(ok){out=json_object_new_object();json_object_object_add(out,"path",json_object_new_string(final));json_object_object_add(out,"digest",json_object_new_string(digest));json_object_object_add(out,"manifest",json_object_get(state.manifest));json_object_object_add(out,"files",json_object_get(state.files));}json_object_put(state.files);json_object_put(state.manifest);return out;
 }
+
+int dc_package_collect(dc_store *s,const char *directory){
+ char base[PATH_MAX];int n=snprintf(base,sizeof base,"%s/extension-store/",s->directory);if(n<0||n>=(int)sizeof base||!directory||strncmp(directory,base,(size_t)n))return 0;
+ const char *digest=directory+n;if(strlen(digest)!=64||strspn(digest,"0123456789abcdef")!=64)return 0;
+ sqlite3_stmt *q=NULL;const char *query="SELECT 1 WHERE EXISTS(SELECT 1 FROM extension_versions WHERE path=?) OR EXISTS(SELECT 1 FROM catalog_packages WHERE path=?)";
+ if(sqlite3_prepare_v2(s->db,query,-1,&q,NULL)!=SQLITE_OK)return 0;sqlite3_bind_text(q,1,directory,-1,SQLITE_TRANSIENT);sqlite3_bind_text(q,2,directory,-1,SQLITE_TRANSIENT);int rc=sqlite3_step(q);sqlite3_finalize(q);if(rc==SQLITE_ROW)return 1;if(rc!=SQLITE_DONE)return 0;
+ char parent[PATH_MAX];memcpy(parent,base,(size_t)n);parent[n-1]=0;int fd=open(parent,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);if(fd<0)return errno==ENOENT;struct stat st;if(fstat(fd,&st)||st.st_uid!=geteuid()||(st.st_mode&077)){close(fd);return 0;}
+ int child=openat(fd,digest,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);if(child<0){int absent=errno==ENOENT;close(fd);return absent;}clear(child);close(child);int ok=unlinkat(fd,digest,AT_REMOVEDIR)==0;if(ok)ok=fsync(fd)==0;close(fd);return ok;
+}

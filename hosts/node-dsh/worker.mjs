@@ -6,6 +6,7 @@ import fs from 'node:fs/promises';
 import readline from 'node:readline';
 import {createRequire} from 'node:module';
 import fsSync from 'node:fs';
+import {Readable} from 'node:stream';
 // Preserve original TypeScript locations in bounded local fault diagnostics.
 process.setSourceMapsEnabled(true);
 const toolchain=path.resolve(process.argv[3]);
@@ -70,13 +71,41 @@ class NativeThemes extends Service {
  }
 }
 new NativeThemes(root);
+// Buffered exact-route adapter. No listening socket or DSH package-manager API.
+// Route handlers run in the same opt-in, trusted host as other plugin commands.
+class NativeWebRoutes extends Service {
+ constructor(ctx){super(ctx,'webServer')}
+ register(route){
+  if(route?.kind!=='exact'||typeof route.path!=='string'||!/^\/[a-zA-Z0-9_./-]{1,256}$/.test(route.path)||typeof route.handler!=='function')throw Error('unsupported exact route');
+  const command='route:'+route.path;
+  const key=owned(this.ctx,command,async args=>{
+   const method=args.method ?? 'GET';if(!['GET','PUT'].includes(method))throw Error('unsupported route method');
+   const body=JSON.stringify(args.body ?? {});if(Buffer.byteLength(body)>65536)throw Error('route body exceeds limit');
+   const request=Readable.from(method==='PUT'?[body]:[]);request.method=method;request.url=route.path;request.headers={'content-type':'application/json'};
+   return await new Promise((resolve,reject)=>{
+    let code=200,bytes='',ended=false;
+    const append=data=>{if(ended)return false;const value=String(data);if(Buffer.byteLength(bytes)+Buffer.byteLength(value)>65536){ended=true;clearTimeout(timer);reject(Error('route response exceeds limit'));return false}bytes+=value;return true};
+    // A timed-out handler may still hold effects; terminate so C records unknown.
+    const timer=setTimeout(()=>process.exit(74),5000);
+    const response={writeHead(status){code=status;return this},setHeader(){return this},end(data=''){if(!append(data))return;ended=true;clearTimeout(timer);try{resolve({status:code,body:JSON.parse(bytes)})}catch{reject(Error('unsupported non-JSON route response'))}},write(data){return append(data)}};
+    Promise.resolve().then(()=>route.handler(request,response)).catch(error=>{clearTimeout(timer);reject(error)});
+   });
+  },commands);
+  const contribution=owned(this.ctx,command,{kind:'command',title:route.path,command},contributions);
+  let disposed=false;const dispose=()=>{if(disposed)return;disposed=true;commands.delete(key);contributions.delete(contribution)};this.ctx.effect(()=>dispose);return dispose;
+ }
+}
+new NativeWebRoutes(root);
+
 const methods={
- 'system.info':()=>({kind:'node-dsh',node:process.versions.node,dsh:pin.dsh,commit:pin.commit,cordis:pin.cordis,services:['dunlin.contributions@1','dsh.theme.register@1'],permissionModel:'trusted-full-host'}),
+ 'system.info':()=>({kind:'node-dsh',node:process.versions.node,dsh:pin.dsh,commit:pin.commit,cordis:pin.cordis,services:['dunlin.contributions@1','dsh.theme.register@1','dsh.webServer.exact-json@1'],permissionModel:'trusted-full-host'}),
  'plugins.activate':async p=>{
   if(!p||typeof p.id!=='string'||typeof p.root!=='string'||typeof p.entry!=='string'||plugins.has(p.id))throw Error('invalid activation');
   const base=await fs.realpath(p.root),entry=await fs.realpath(path.resolve(base,p.entry));if(!entry.startsWith(base+path.sep))throw Error('entry escapes package');
   const mod=await import(pathToFileURL(entry).href);const plugin=mod.default ?? mod;
   const shape=typeof plugin==='function'?{...plugin,apply:plugin}:plugin;
+  const required=Array.isArray(shape.inject)?shape.inject:Object.entries(shape.inject ?? {}).filter(([,required])=>required).map(([name])=>name);
+  const missing=required.filter(name=>!root.get(name));if(missing.length)throw Object.assign(Error('Required services unavailable'),{code:'DUNLIN_MISSING_SERVICES',missingServices:missing});
   if(typeof shape.apply!=='function')throw Error('unsupported plugin entry');
   const wrapped={...shape,apply(ctx,config){owners.set(ctx.fiber,p.id);return shape.apply(ctx,config)}};
   let fiber;try {fiber=await root.plugin(wrapped,p.config ?? {});if(!fiber||fiber.state!==FiberState.ACTIVE)throw Error('plugin did not activate');plugins.set(p.id,fiber);return {id:p.id,state:'active'}}catch(error){if(fiber)await fiber.dispose();throw error}
@@ -92,7 +121,9 @@ function diagnostic(error){
   const location=line.match(/([^/\\():\s]+):([0-9]+):([0-9]+)\)?$/);
   return location ? `${location[1].slice(0,128)}:${location[2]}:${location[3]}`:null;
  }).filter(Boolean);
- return [kind||'Error',...frames].join('\n').slice(0,2048);
+ const moduleName=error?.code==='ERR_MODULE_NOT_FOUND'?String(error?.message ?? '').match(/Cannot find package '(@?[A-Za-z0-9_.\/-]+)'/)?.[1]:null;
+ const missing=Array.isArray(error?.missingServices)?error.missingServices.filter(s=>typeof s==='string'&&/^[a-zA-Z0-9_.-]{1,128}$/.test(s)).slice(0,32):[];
+ return [kind||'Error',...(moduleName?['Missing package: '+moduleName.slice(0,128)]:[]),...(missing.length?['Missing services: '+missing.join(', ')]:[]),...frames].join('\n').slice(0,2048);
 }
 const write=o=>process.stdout.write(JSON.stringify(o)+'\n');
 write({protocol:'dunlin.worker',major:1,nonce:process.env.DUNLIN_WORKER_NONCE,methods:Object.keys(methods),runtime:{kind:'node-dsh',node:process.versions.node,dsh:pin.dsh,commit:pin.commit,cordis:pin.cordis}});

@@ -2,13 +2,14 @@ import SwiftUI
 
 private struct CommunityEntry:Decodable,Identifiable {
   var id:String {name+url}
-  let name:String;let title:String;let description:String;let url:String
+  let name:String;let title:String;let description:String;let url:String;let compatibilityReason:String?
 }
 private struct CommunitySource:Decodable,Identifiable {
   let id:String;let title:String;let url:String;let updatedAt:Int64;let entries:[CommunityEntry]
 }
 /// Only presents C-owned data-only indexes. Upstream commands never enter execution.
 struct DiscoveryView:View {
+  var canInstall=false
   @EnvironmentObject var store:WorkspaceStore
   @State private var sources:[CommunitySource]=[]
   @State private var busy=false
@@ -17,11 +18,14 @@ struct DiscoveryView:View {
   @State private var title=""
   @State private var url=""
   @State private var query=""
+  @State private var installing:CommunityEntry?
+  @State private var version=""
+  @State private var availableVersions:[String]=[]
   @State private var cancellation:Callbacks?
   var body:some View {
     GroupBox("社区插件索引") {
       VStack(alignment:.leading,spacing:14) {
-        Text("同步 DSHSeek 第三方索引或 Dunlin 在 GitHub 维护的常用清单。仅更新本地列表，不自动安装；上游插件的 Dunlin 兼容性仍待逐项验证。").font(.callout).foregroundStyle(.secondary)
+        Text("同步 DSHSeek 第三方索引或 Dunlin 在 GitHub 维护的常用清单。同步仅更新本地列表。维护清单内的插件可选择 npm 版本下载安装；完整兼容性仍待逐项验证。").font(.callout).foregroundStyle(.secondary)
         HStack {
           Text("plugin-index-sources.json").font(.system(.caption,design:.monospaced))
           Spacer()
@@ -39,11 +43,11 @@ struct DiscoveryView:View {
                 VStack(alignment:.leading,spacing:5) {
                   Text(entry.title).font(.headline)
                   Text(entry.description).font(.caption).foregroundStyle(.secondary)
-                  Label("兼容性待验证 · 仅供发现",systemImage:"exclamationmark.circle").font(.caption).foregroundStyle(.orange)
+                  Label(entry.compatibilityReason ?? "兼容性待验证，安装后需单独启用测试",systemImage:"exclamationmark.circle").font(.caption).foregroundStyle(.orange)
                 }
                 Spacer()
                 if let link=URL(string:entry.url),link.scheme=="https" {Link("查看项目",destination:link)}
-                Button("安装"){}.disabled(true).help("社区索引不是已验签的 Dunlin 安装包；完成适配与验证后才能安装。")
+                Button("下载安装…"){version="";availableVersions=[];installing=entry;store.catalogRequest(["op":"catalog.npm.versions","repository":entry.url],as:[String].self){reply in availableVersions=reply.data ?? [];version=availableVersions.first ?? "";if !reply.ok {error=reply.error ?? "无法读取版本"}}}.disabled(busy || !canInstall).help("从 npm 下载指定版本并验证摘要；启用后才能测试运行兼容性。")
               }.padding(.vertical,8)
               Divider()
             }
@@ -57,7 +61,7 @@ struct DiscoveryView:View {
         }
       }.padding(12)
     }.onAppear(perform:reload).onDisappear{cancellation?.cancel()}
-      .onChange(of:store.identityEpoch){_,_ in cancellation?.cancel();busy=false;sources=[];error="";reload()}
+      .onChange(of:store.identityEpoch){_,_ in cancellation?.cancel();busy=false;sources=[];error="";installing=nil;availableVersions=[];version="";reload()}
       .sheet(isPresented:$adding) {
         VStack(alignment:.leading,spacing:16) {
           Text("添加社区索引").font(.title2.bold())
@@ -66,6 +70,22 @@ struct DiscoveryView:View {
           HStack {Spacer();Button("取消"){adding=false};Button("添加"){adding=false;request(["op":"catalog.community.add","id":UUID().uuidString,"title":title,"url":url]);title="";url=""}.disabled(title.isEmpty || !url.hasPrefix("https://"))}
         }.textFieldStyle(.roundedBorder).padding(24).frame(width:520)
       }
+      .sheet(item:$installing){entry in
+        VStack(alignment:.leading,spacing:16){
+          Text("下载 \(entry.title)").font(.title2.bold())
+          Text("选择明确的 npm 版本。系统验证下载摘要并保存到本地，不执行安装脚本；插件兼容性需要启用后测试，可能因缺少服务而被停用。").font(.callout).foregroundStyle(.secondary)
+          Picker("已发布版本",selection:$version){Text("选择版本").tag("");ForEach(availableVersions,id:\.self){Text($0).tag($0)}}
+          if availableVersions.isEmpty {Text("正在读取版本，或该项目尚未支持下载安装。").foregroundStyle(.secondary).font(.caption)}
+          HStack{Spacer();Button("取消"){installing=nil};Button("下载安装"){install(entry);installing=nil}.disabled(version.isEmpty)}
+        }.padding(24).frame(width:520)
+      }
+  }
+  private func install(_ entry:CommunityEntry){
+    busy=true;error="";let box=Callbacks();cancellation=box
+    store.catalogRequest(["op":"catalog.npm.install","repository":entry.url,"version":version],as:[ExtensionRow].self,cancel:box){reply in
+      busy=false;cancellation=nil
+      error=reply.ok ? "已下载，默认停用。请到设置中的插件页面选择版本并启用。":"安装未完成：\(reply.error ?? "未知错误")"
+    }
   }
   private func reload(){request(["op":"catalog.community.list"])}
   private func request(_ body:[String:Any]) {

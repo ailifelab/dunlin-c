@@ -173,8 +173,9 @@ static J *install(dc_store *s,J *r,const dc_hooks *hooks){
  done:json_object_put(payload);return error?fail(error):reply(1,NULL,json_object_new_object());
 }
 #include "discovery.h"
+#include "npm_install.h"
 J *dc_catalog_request(dc_store *s,J *r,const dc_hooks *hooks){
- const char *op=str(r,"op");if(!op)return fail("invalid_catalog_request");if(!strncmp(op,"catalog.community.",18))return discovery_request(s,r,hooks);if(eq(op,"catalog.config")){char path[PATH_MAX];if(!source_path(s,path))return fail("source_config_path_invalid");J *data=json_object_new_object();json_object_object_add(data,"path",json_object_new_string(path));return reply(1,NULL,data);}const char *config_error=source_config_sync(s);if(config_error)return fail(config_error);if(eq(op,"catalog.list"))return sources(s);const char *id=str(r,"id");
+ const char *op=str(r,"op");if(!op)return fail("invalid_catalog_request");if(eq(op,"catalog.npm.versions"))return npm_versions(r,hooks);if(eq(op,"catalog.npm.install"))return npm_install(s,r,hooks);if(!strncmp(op,"catalog.community.",18))return discovery_request(s,r,hooks);if(eq(op,"catalog.config")){char path[PATH_MAX];if(!source_path(s,path))return fail("source_config_path_invalid");J *data=json_object_new_object();json_object_object_add(data,"path",json_object_new_string(path));return reply(1,NULL,data);}const char *config_error=source_config_sync(s);if(config_error)return fail(config_error);if(eq(op,"catalog.list"))return sources(s);const char *id=str(r,"id");
  if(eq(op,"catalog.add")){
   const char *url=str(r,"url"),*key=str(r,"publicKey"),*title=str(r,"title");if(!ident(id)||!https(url)||!hex(key,64)||!text(title,256))return fail("invalid_source_or_public_key");if(!sql(s,"BEGIN IMMEDIATE"))return fail("storage_error");sqlite3_stmt *q=prep(s,"INSERT INTO catalog_sources(id,url,title,public_key) VALUES(?,?,?,?)");if(q){db_bind(q,1,id);db_bind(q,2,url);db_bind(q,3,title);db_bind(q,4,key);}if(!step(q)){sql(s,"ROLLBACK");return fail("source_already_exists_or_storage_error");}const char *error=source_config_finish(s);return error?fail(error):sources(s);
  }

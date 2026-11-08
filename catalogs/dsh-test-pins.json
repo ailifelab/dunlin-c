@@ -1,0 +1,38 @@
+[
+  {
+    "repository": "omdsh-dev/DSH-better-sidebar",
+    "commit": "bd6363021dd4af8ca9df239e0c59df35b873d6b4",
+    "name": "dsh-better-sidebar",
+    "version": "0.30.1"
+  },
+  {
+    "repository": "zhijun-dai/Catppuccin-dsh-theme",
+    "commit": "9d18edc84a13fb6009391677046ddedec267ecdc",
+    "name": "dsh-catppuccin",
+    "version": "0.2.6"
+  },
+  {
+    "repository": "shanliuling/dsh-image-gen",
+    "commit": "29db6e4117e9cba9c3be0364cdec754573841c77",
+    "name": "dsh-image-gen",
+    "version": "0.11.0"
+  },
+  {
+    "repository": "dsh-market/dsh-market",
+    "commit": "ed92edf9422a021e9e3460c9185f89500e6dc69d",
+    "name": "dshmarket",
+    "version": "1.73.15"
+  },
+  {
+    "repository": "hoyyang/dsh-project-manager",
+    "commit": "d2b92499d1cd300cd6b7af4add61dc5cd9bcbb62",
+    "name": "dsh-project-manager",
+    "version": "0.57.0"
+  },
+  {
+    "repository": "PerryLink/dsh-checkpoint-rewind",
+    "commit": "4766f7b77dad073ab308fd5f2c6be80567825cb9",
+    "name": "dsh-checkpoint-rewind",
+    "version": "0.6.34"
+  }
+]

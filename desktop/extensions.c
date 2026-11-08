@@ -114,6 +114,22 @@ static J *activate(dc_store *s,J *r,const dc_hooks *hooks){
  }
  free(path);json_object_put(manifest);json_object_put(files);return error?fail(error):inventory(s);
 }
+/* Stop before removing bindings; keep forensic call/fault history. */
+static J *uninstall(dc_store *s,J *r,const dc_hooks *hooks){
+ const char *source=str(r,"source"),*package=str(r,"package");
+ if(!id(source)||!id(package))return fail("invalid_extension_reference");
+ if(!sqlite3_get_autocommit(s->db))return fail("extension_transaction_busy");
+ sqlite3_stmt *q=prep(s,"SELECT version FROM extension_bindings WHERE source=? AND package=?");if(q){bind(q,1,source);bind(q,2,package);}int rc=q?sqlite3_step(q):SQLITE_ERROR;
+ char *version=rc==SQLITE_ROW?strdup((const char*)sqlite3_column_text(q,0)):NULL;sqlite3_finalize(q);
+ if(!version)return fail(rc==SQLITE_DONE?"extension_version_missing":"storage_error");
+ J *request=json_object_new_object();json_object_object_add(request,"source",json_object_new_string(source));json_object_object_add(request,"package",json_object_new_string(package));json_object_object_add(request,"version",json_object_new_string(version));json_object_object_add(request,"enabled",json_object_new_boolean(0));free(version);
+ J *stopped=activate(s,request,hooks);json_object_put(request);int ok=stopped&&json_object_get_boolean(get(stopped,"ok"));json_object_put(stopped);if(!ok)return fail("extension_uninstall_stop_failed");
+ J *paths=json_object_new_array();q=prep(s,"SELECT DISTINCT path FROM extension_versions WHERE source=? AND package=?");if(q){bind(q,1,source);bind(q,2,package);}int scanned=SQLITE_ERROR;while(q&&(scanned=sqlite3_step(q))==SQLITE_ROW)json_object_array_add(paths,json_object_new_string((const char*)sqlite3_column_text(q,0)));sqlite3_finalize(q);if(scanned!=SQLITE_DONE){json_object_put(paths);return fail("storage_error");}
+ if(!sql(s,"BEGIN IMMEDIATE")){json_object_put(paths);return fail("storage_error");}
+ const char *queries[]={"DELETE FROM extension_configuration WHERE source=? AND package=?","DELETE FROM extension_bindings WHERE source=? AND package=?","DELETE FROM extension_versions WHERE source=? AND package=?","DELETE FROM catalog_packages WHERE source=? AND package=?"};
+ for(size_t i=0;i<sizeof queries/sizeof *queries;i++){q=prep(s,queries[i]);if(q){bind(q,1,source);bind(q,2,package);}if(!step(q)){sql(s,"ROLLBACK");json_object_put(paths);return fail("storage_error");}}
+ if(!sql(s,"COMMIT")){sql(s,"ROLLBACK");json_object_put(paths);return fail("storage_error");}int cleaned=1;for(size_t i=0;i<json_object_array_length(paths);i++)if(!dc_package_collect(s,json_object_get_string(json_object_array_get_idx(paths,i))))cleaned=0;json_object_put(paths);return cleaned?inventory(s):fail("extension_removed_cache_cleanup_failed");
+}
 static void host_fault(dc_store *s,extension_state *e,const char *host,const char *code){
  J *affected=json_object_new_array();json_object_object_foreach(e->active,key,value){(void)key;if(eq(str(value,"host"),host))json_object_array_add(affected,json_object_get(value));}
  for(size_t i=0;i<json_object_array_length(affected);i++){J *v=json_object_array_get_idx(affected,i);fault(s,str(v,"source"),str(v,"package"),str(v,"version"),"host",code);}json_object_put(affected);
@@ -211,6 +227,7 @@ static J *clients(dc_store *s,const dc_hooks *hooks){
 J *dc_extensions_request(dc_store *s,J *r,const dc_hooks *hooks){
  const char *op=str(r,"op");if(!op)return fail("invalid_extension_request");extension_state *e=state(s);if(!e)return fail("out_of_memory");
  if(eq(op,"extensions.assets")){const char *path=str(r,"path");if(!path||strlen(path)>=PATH_MAX||path[0]!='/')return fail("invalid_assets_path");free(e->assets);e->assets=strdup(path);return environment(s);}
+ if(eq(op,"extensions.uninstall"))return uninstall(s,r,hooks);
  if(eq(op,"extensions.restore"))return restore(s,e,hooks);
  if(eq(op,"compat.status"))return environment(s);
  if(eq(op,"compat.enable")){

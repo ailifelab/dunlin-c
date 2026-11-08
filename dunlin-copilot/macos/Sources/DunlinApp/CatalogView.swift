@@ -63,7 +63,7 @@ struct CatalogView:View {
         }.padding(18).background(store.themeTint.opacity(0.08),in:RoundedRectangle(cornerRadius:12))
       }
 
-      if kind == "plugin" {DiscoveryView()}
+      if kind == "plugin" {DiscoveryView(canInstall:compatibility?.healthy == true)}
       GroupBox("本地商店来源") {
         VStack(alignment:.leading,spacing:10) {
           Text("自行添加采用统一 Dunlin Catalog v1 协议的可信目录。来源保存在当前身份的本地配置文件中；修改来源不会自动下载或启用插件。").font(.callout).foregroundStyle(.secondary)

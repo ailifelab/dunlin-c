@@ -20,8 +20,10 @@
       },
       "metadata": {
         "dunlin": {
-          "compatibility": "unverified",
-          "installable": false
+          "compatibility": "incompatible",
+          "installable": false,
+          "testedVersion": "1.73.15",
+          "reason": "Missing package: js-yaml；启用失败将自动停用并保留日志。"
         }
       }
     },
@@ -38,8 +40,10 @@
       },
       "metadata": {
         "dunlin": {
-          "compatibility": "unverified",
-          "installable": false
+          "compatibility": "incompatible",
+          "installable": false,
+          "testedVersion": "0.30.1",
+          "reason": "发布包超出当前文件布局或大小限制，尚不能安装。"
         }
       }
     },
@@ -56,8 +60,10 @@
       },
       "metadata": {
         "dunlin": {
-          "compatibility": "unverified",
-          "installable": false
+          "compatibility": "incompatible",
+          "installable": false,
+          "testedVersion": "0.11.0",
+          "reason": "发布包超出当前文件布局或大小限制，尚不能安装。"
         }
       }
     },
@@ -74,8 +80,10 @@
       },
       "metadata": {
         "dunlin": {
-          "compatibility": "unverified",
-          "installable": false
+          "compatibility": "incompatible",
+          "installable": false,
+          "testedVersion": "0.6.34",
+          "reason": "Missing package: @deepseek-ai/dsh-session；启用失败将自动停用并保留日志。"
         }
       }
     },
@@ -92,8 +100,10 @@
       },
       "metadata": {
         "dunlin": {
-          "compatibility": "unverified",
-          "installable": false
+          "compatibility": "partial-host",
+          "installable": false,
+          "testedVersion": "0.2.6",
+          "reason": "宿主状态读写已验证；完整主题配色与原始客户端界面仍待适配。"
         }
       }
     },
@@ -110,8 +120,10 @@
       },
       "metadata": {
         "dunlin": {
-          "compatibility": "unverified",
-          "installable": false
+          "compatibility": "incompatible",
+          "installable": false,
+          "testedVersion": "0.57.0",
+          "reason": "发布包超出当前文件布局或大小限制，尚不能安装。"
         }
       }
     }

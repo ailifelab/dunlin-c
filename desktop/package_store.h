@@ -7,4 +7,6 @@ struct json_object *dc_package_snapshot(dc_store *,const char *directory);
 int dc_package_verify(const char *directory,struct json_object *files);
 /* Caller owns returned bounded UTF-8 bytes; verified against the recorded file. */
 char *dc_package_read_text(const char *directory,struct json_object *files,const char *relative);
+/* Remove an unreferenced owned content directory; never follows links. */
+int dc_package_collect(dc_store *,const char *directory);
 #endif

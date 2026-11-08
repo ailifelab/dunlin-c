@@ -30,7 +30,7 @@ static J *discovery_entries(const char *raw,size_t len){
  out=json_object_new_array();for(size_t i=0;i<json_object_array_length(a);i++){
   J *r=json_object_array_get_idx(a,i);const char *name=str(r,"name"),*url=str(get(r,"repository"),"url"),*title=discovery_localized(r,"title"),*desc=discovery_localized(r,"description");
   if(!text(name,256)||!https(url)||(title&&!text(title,512))||(desc&&strlen(desc)>4096)){json_object_put(out);out=NULL;break;}
-  J *e=json_object_new_object();json_object_object_add(e,"name",json_object_new_string(name));json_object_object_add(e,"title",json_object_new_string(title?title:name));json_object_object_add(e,"description",json_object_new_string(desc?desc:""));json_object_object_add(e,"url",json_object_new_string(url));json_object_array_add(out,e);
+  J *e=json_object_new_object();json_object_object_add(e,"name",json_object_new_string(name));json_object_object_add(e,"title",json_object_new_string(title?title:name));json_object_object_add(e,"description",json_object_new_string(desc?desc:""));json_object_object_add(e,"url",json_object_new_string(url));const char *reason=str(get(get(r,"metadata"),"dunlin"),"reason");if(reason&&strlen(reason)<=512)json_object_object_add(e,"compatibilityReason",json_object_new_string(reason));json_object_array_add(out,e);
  }
  done:json_object_put(o);return out;
 }
