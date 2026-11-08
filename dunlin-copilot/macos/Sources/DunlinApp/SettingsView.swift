@@ -146,6 +146,7 @@ struct SettingsView: View {
         Section("主题") {
           appearanceRow
           Text("系统材质与正文保持清楚的层级。").foregroundStyle(.secondary)
+          PluginThemeSettings()
         }
       }.formStyle(.grouped)
     case "导入配置":

@@ -62,10 +62,14 @@ def closure(app):
         if not path.resolve().is_relative_to(app):raise ValueError('bundle file escapes app')
         if not image(path):continue
         dependencies=[]
+        # otool -L also prints LC_ID_DYLIB. That is the image's install name,
+        # not a dependency that must resolve through this executable's rpaths.
+        own_ids={line.strip() for line in command(['otool','-D',str(path)]).splitlines()[1:] if line.strip()}
         search=[expand(p,path,exe) for p in rpaths(path)]+[expand(p,exe,exe) for p in executable_paths]
         for line in command(['otool','-L',str(path)]).splitlines()[1:]:
             if ' (compatibility version ' not in line:continue
             dep=line.strip().split(' (compatibility version ',1)[0]
+            if dep in own_ids:continue
             if dep.startswith(('/System/Library/','/usr/lib/')):
                 dependencies.append(dict(name=dep,kind='system'));continue
             candidates=[base/dep[7:] for base in search if base is not None] if dep.startswith('@rpath/') else [expand(dep,path,exe)]

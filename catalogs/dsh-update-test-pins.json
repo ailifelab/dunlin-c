@@ -1,0 +1,38 @@
+[
+  {
+    "name": "dsh-better-sidebar",
+    "version": "0.30.1",
+    "previous": "0.30.0",
+    "integrity": "sha512-QBE6cuRSfSTQMWuU06Z7sLY4PVs2bl9cq3hO23cw5WU/9bcI3c0D11qfvEjQSgmJuLA9kHQbohtk0X4AhDv6Rw=="
+  },
+  {
+    "name": "dsh-catppuccin",
+    "version": "0.2.6",
+    "previous": "0.2.3",
+    "integrity": "sha512-W89FL/8ZoKVqXkr4LW5N6v3pV52q4o0laC0zhW5RtofqrVyJwaK6C9oz4UU2fnV4x2FTqautL3KmM7TsLu2+fw=="
+  },
+  {
+    "name": "dsh-image-gen",
+    "version": "0.11.0",
+    "previous": "0.10.3",
+    "integrity": "sha512-1dhq9daP+1XCAK6POFJMZXIcIIQOxKC6QFpE40CBi5ucIga07POnNrZdB1FyZJKYI7IE6Iil4SZ3TJMALTGX0A=="
+  },
+  {
+    "name": "dshmarket",
+    "version": "1.73.15",
+    "previous": "1.73.14",
+    "integrity": "sha512-HOjNe2NVGaADXR4gdlisbTNXRjo2O2gsL4voZlivE4JKrcN8hjFYsCGWWKvlRm/GWc1G6PXeThp2WjfegCoqaw=="
+  },
+  {
+    "name": "dsh-project-manager",
+    "version": "0.57.0",
+    "previous": "0.20.1",
+    "integrity": "sha512-j/Z/Pap131F0j2j99LUqpXqCqSPPwRVSIraHWtKbmifG1Cl86Sg4YHW1yxg1zbRNpCHdHYIfnHTnnQUS8Yhskw=="
+  },
+  {
+    "name": "dsh-checkpoint-rewind",
+    "version": "0.6.34",
+    "previous": "0.6.33",
+    "integrity": "sha512-9/SxryUO8seCU+c87spJRWMMIWpybI0R4v3IuLdtvxQuKieC5l0xFXcvWrObogiOJD6uCfEWAQnmAo33Ei0rag=="
+  }
+]

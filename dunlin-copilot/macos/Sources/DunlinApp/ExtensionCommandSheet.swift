@@ -27,18 +27,22 @@ struct ExtensionCommandSheet:View {
   var body:some View {
     VStack(alignment:.leading,spacing:18){
       HStack{Text(selection.title).font(.title2.weight(.semibold));Spacer();Button("完成"){dismiss()}.disabled(busy)}
+      Text("当前聊天：\(store.selectedChat?.title ?? "未选择")").font(.callout).foregroundStyle(.secondary)
       Text("参数（JSON 对象）").font(.headline)
       TextEditor(text:$arguments).font(.system(size:13,design:.monospaced)).frame(height:140).border(.quaternary).disabled(busy)
       HStack{Text("命令：\(selection.command)").font(.caption).foregroundStyle(.secondary);Spacer();if busy{ProgressView().controlSize(.small);Button("停止"){cancel?.cancel()}}else{Button("执行"){run()}.buttonStyle(.borderedProminent)}}
       if !error.isEmpty{Text(error).foregroundStyle(.red)}
       ScrollView{Text(result).font(.system(size:13,design:.monospaced)).textSelection(.enabled).frame(maxWidth:.infinity,alignment:.leading)}
     }.padding(28).frame(width:720,height:600).onDisappear{cancel?.cancel()}
+      .onAppear{if selection.command.hasPrefix("slash:"){arguments="{\"input\": \"\"}"}}
       .onChange(of:store.identityEpoch){_,_ in cancel?.cancel();dismiss()}
   }
   private func run(){
     guard arguments.utf8.count<=131072,let data=arguments.data(using:.utf8),let object=(try? JSONSerialization.jsonObject(with:data)) as? [String:Any] else{error="请输入有效 JSON 对象，最大 128 KiB。";return}
     busy=true;error="";result="";let box=Callbacks();cancel=box
-    store.extensionRequest(["op":"extensions.command","source":selection.source,"package":selection.package,"command":selection.command,"arguments":object],as:JSONValue.self,cancel:box){r in
+    var request:[String:Any]=["op":"extensions.command","source":selection.source,"package":selection.package,"command":selection.command,"arguments":object]
+    if let chat=store.selected {request["chat"]=chat}
+    store.extensionRequest(request,as:JSONValue.self,cancel:box){r in
       busy=false;cancel=nil;result=r.data?.formatted ?? "";error=r.ok ? "":extensionReason(r.error ?? "扩展命令未完成");store.refreshThemes()
     }
   }

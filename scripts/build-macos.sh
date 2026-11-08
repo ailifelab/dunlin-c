@@ -14,11 +14,11 @@ cp vendor/libyaml/License "$app/Contents/Resources/ThirdParty/libyaml-MIT.txt"
 cp "$native_deps/licenses/json-c.txt" "$app/Contents/Resources/ThirdParty/json-c-MIT.txt"
 cp "$native_deps/licenses/openssl.txt" "$app/Contents/Resources/ThirdParty/OpenSSL-Apache-2.0.txt"
 cp build/native-deps/media-current/COPYING "$app/Contents/Resources/ThirdParty/curl.txt"
-if [ ! -f build/v51/dsh-toolchain/node_modules/esbuild/package.json ]; then
-  mkdir -p build/v51/dsh-toolchain
-  cp hosts/node-dsh/toolchain-package.json build/v51/dsh-toolchain/package.json
-  cp hosts/node-dsh/toolchain-lock.json build/v51/dsh-toolchain/package-lock.json
-  npm ci --prefix build/v51/dsh-toolchain --ignore-scripts --no-audit --no-fund
+if [ ! -f build/v51/dsh-toolchain-v2/node_modules/esbuild/package.json ] || ! cmp -s hosts/node-dsh/toolchain-lock.json build/v51/dsh-toolchain-v2/package-lock.json; then
+  mkdir -p build/v51/dsh-toolchain-v2
+  cp hosts/node-dsh/toolchain-package.json build/v51/dsh-toolchain-v2/package.json
+  cp hosts/node-dsh/toolchain-lock.json build/v51/dsh-toolchain-v2/package-lock.json
+  npm ci --prefix build/v51/dsh-toolchain-v2 --ignore-scripts --no-audit --no-fund --userconfig /dev/null --cache build/v51/dsh-dependency-cache
 fi
 python3 -B scripts/prepare-dsh-assets.py
 # No interpreter is bundled or started. These optional, fixed adapter assets

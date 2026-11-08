@@ -5,6 +5,7 @@
 #include "knowledge_projection.h"
 #include "knowledge.h"
 #include "extensions.h"
+#include "extension_tools.h"
 #include "catalog.h"
 #include "dunlin/desktop.h"
 #include "dunlin/history_index.h"
@@ -800,6 +801,17 @@ static char *run_impl(dc_store *s,const char *id,const char *settings,const char
         if(knowledge_error||!snapshot){if(!knowledge_error)knowledge_error="无法冻结知识引用";free(expanded);free(workspace);dc_project_tools_close(&file_tools);json_object_put(project);json_object_put(cfg);J *out=json_object_new_object();json_object_object_add(out,"status",json_object_new_string("failed"));json_object_object_add(out,"text",json_object_new_string(knowledge_error));char *result=copyjson(out);json_object_put(out);return result;}
         json_object_object_add(cfg,"_knowledge_snapshot",snapshot);
     }
+    /* Freeze complete package/config identities with the admitted model profile.
+       Old pending turns without this field retain their original tool set. */
+    J *extension_snapshot=NULL;
+    int plugin_tools_allowed=use_adapter&&!strcmp(project_policy?project_policy:mode?mode:"noTools","ask")&&(!prior_active||get(frozen,"_extension_catalog"));
+    if(plugin_tools_allowed){
+        extension_snapshot=dc_extension_tools_snapshot(s);
+        J *prior=get(frozen,"_extension_catalog");
+        int changed=prior&&extension_snapshot&&strcmp(json_object_to_json_string_ext(prior,JSON_C_TO_STRING_PLAIN),json_object_to_json_string_ext(extension_snapshot,JSON_C_TO_STRING_PLAIN));
+        if(!extension_snapshot||changed){json_object_put(extension_snapshot);free(expanded);free(workspace);dc_project_tools_close(&file_tools);json_object_put(project);json_object_put(cfg);return strdup("{\"status\":\"busy\",\"text\":\"插件工具版本或配置已变化，未执行待处理工具。请先结束原回合。\"}");}
+        json_object_object_add(cfg,"_extension_catalog",extension_snapshot);
+    }
     char *profile_config=NULL;
     if(use_adapter){
         J *identity=json_object_new_object();
@@ -841,6 +853,7 @@ static char *run_impl(dc_store *s,const char *id,const char *settings,const char
     json_object_object_del(cfg,"desktop_knowledge");
     json_object_object_del(cfg,"_knowledge_snapshot");
     json_object_object_del(cfg,"_frozen_skills");
+    json_object_object_del(cfg,"_extension_catalog");
     json_object_object_del(cfg,"_public_settings");
     json_object_object_del(cfg,"_public_settings_raw");
     json_object_object_del(cfg,"_tool_policy");
@@ -911,7 +924,13 @@ static char *run_impl(dc_store *s,const char *id,const char *settings,const char
     ah_tool_service agent_tools={0};
     int agent_adapter_ok=!delegation_allowed||dc_agents_tools(s,&file_tools,&agent_tools);
     const ah_tool_service *run_tools=agent_tools.ctx?&agent_tools:use_adapter?&file_tools:NULL;
-    if(r&&agent_adapter_ok){
+    ah_tool_service extension_tools={0};
+    int extension_adapter_ok=1;
+    if(r&&agent_adapter_ok&&plugin_tools_allowed){
+        extension_adapter_ok=dc_extension_tools_open(s,id,run_tools?run_tools:ak_get(dunlin_scope(r),"tools",1),get(trace_config,"_extension_catalog"),&extension_tools);
+        if(extension_adapter_ok)run_tools=&extension_tools;
+    }
+    if(r&&agent_adapter_ok&&extension_adapter_ok){
         dunlin_set_model_trace(r,1);
         tool_records.inner=ak_get(dunlin_scope(r),"tool.pipeline",1);
         tool_records.tools=run_tools?run_tools:ak_get(dunlin_scope(r),"tools",1);
@@ -931,6 +950,7 @@ static char *run_impl(dc_store *s,const char *id,const char *settings,const char
         json_object_put(audit);
     }
     else if(r)dunlin_close(r);
+    dc_extension_tools_close(&extension_tools);
     dc_agents_tools_close(&agent_tools);
     if(input_committed)*input_committed=l.input_committed;
     if(host.grant_error==2)result.status=AH_UNKNOWN;

@@ -20,11 +20,11 @@ case "${1:-}" in
     cp build/native-deps/macos26/licenses/openssl.txt "$resources/ThirdParty/OpenSSL-Apache-2.0.txt"
     cp build/native-deps/media-current/COPYING "$resources/ThirdParty/curl.txt"
     # Optional compatibility assets are build inputs, not an installed engine.
-    if [ ! -f build/v51/dsh-toolchain/node_modules/esbuild/package.json ]; then
-      mkdir -p build/v51/dsh-toolchain
-      cp hosts/node-dsh/toolchain-package.json build/v51/dsh-toolchain/package.json
-      cp hosts/node-dsh/toolchain-lock.json build/v51/dsh-toolchain/package-lock.json
-      npm ci --prefix build/v51/dsh-toolchain --ignore-scripts --no-audit --no-fund
+    if [ ! -f build/v51/dsh-toolchain-v2/node_modules/esbuild/package.json ] || ! cmp -s hosts/node-dsh/toolchain-lock.json build/v51/dsh-toolchain-v2/package-lock.json; then
+      mkdir -p build/v51/dsh-toolchain-v2
+      cp hosts/node-dsh/toolchain-package.json build/v51/dsh-toolchain-v2/package.json
+      cp hosts/node-dsh/toolchain-lock.json build/v51/dsh-toolchain-v2/package-lock.json
+      npm ci --prefix build/v51/dsh-toolchain-v2 --ignore-scripts --no-audit --no-fund --userconfig /dev/null --cache build/v51/dsh-dependency-cache
     fi
     python3 -B scripts/prepare-dsh-assets.py "build/v51/xcode-assets-$CONFIGURATION"
     rm -rf "$resources/ExtensionAssets.next"

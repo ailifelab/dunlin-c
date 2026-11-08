@@ -7,10 +7,10 @@ struct CompatibilityStatus:Decodable {
 }
 struct ExtensionEngines:Decodable {let host:String?;let dunlin:String?;let dsh:String?}
 struct ExtensionManifest:Decodable {
-  let packageId:String;let version:String;let displayName:String?;let kind:String;let engines:ExtensionEngines;let entry:String?;let capabilities:[String]
+  let packageId:String;let version:String;let upstreamVersion:String?;let adapterRevision:Int?;let displayName:String?;let kind:String;let engines:ExtensionEngines;let entry:String?;let capabilities:[String]
 }
 struct ExtensionVersion:Decodable,Identifiable {
-  var id:String{version};let version:String;let digest:String;let manifest:ExtensionManifest;let quarantined:Bool;let reason:String
+  var id:String{version};var label:String{guard let upstream=manifest.upstreamVersion,let revision=manifest.adapterRevision else{return version};return "\(upstream) · 适配 \(revision)"};let version:String;let digest:String;let manifest:ExtensionManifest;let quarantined:Bool;let reason:String
 }
 struct ExtensionRow:Decodable,Identifiable {
   var id:String{source+":"+package};let source:String;let package:String;let version:String;let enabled:Bool;let active:Bool;let runtimeID:String;let versions:[ExtensionVersion]
@@ -27,9 +27,17 @@ extension WorkspaceStore {
   func extensionRequest<T:Decodable>(_ body:[String:Any],as:T.Type,cancel:Callbacks?=nil,event:((String)->Void)?=nil,completion:@escaping(WorkspaceReply<T>)->Void){
     guard let handle,let data=try? JSONSerialization.data(withJSONObject:body),let raw=String(data:data,encoding:.utf8) else{return}
     let epoch=identityEpoch,box=cancel ?? Callbacks()
+    box.approve={_,text in DispatchQueue.main.sync {
+      guard self.identityEpoch==epoch,!box.isCancelled(),let bytes=text.data(using:.utf8),let value=(try? JSONSerialization.jsonObject(with:bytes)) as? [String:Any],let question=value["question"] as? [String:Any],let title=question["question"] as? String,let detail=question["detail"] as? String,let options=question["options"] as? [[String:Any]],options.count==2 else{return 0}
+      let alert=NSAlert();alert.messageText="插件操作需要确认";alert.informativeText="\(value["package"] as? String ?? "") · 仅对本次操作有效。请检查下面的变更。"
+      let scroll=NSScrollView(frame:NSRect(x:0,y:0,width:620,height:260));scroll.hasVerticalScroller=true;scroll.borderType = .bezelBorder
+      let text=NSTextView(frame:scroll.bounds);text.isEditable=false;text.isSelectable=true;text.font = .systemFont(ofSize:13);text.string=title+"\n\n"+detail;text.textContainerInset=NSSize(width:10,height:10);text.isVerticallyResizable=true;text.autoresizingMask = [.width];text.textContainer?.widthTracksTextView=true;scroll.documentView=text;alert.accessoryView=scroll
+      alert.addButton(withTitle:options[0]["label"] as? String ?? "仅允许一次");alert.addButton(withTitle:options[1]["label"] as? String ?? "取消");alert.buttons[0].keyEquivalent="";alert.window.defaultButtonCell=nil
+      return alert.runModal() == .alertFirstButtonReturn && !box.isCancelled() ? 1:0
+    }}
     box.event={_,text in DispatchQueue.main.async{if self.identityEpoch==epoch {event?(text)}}}
     queue.async {
-      var hooks=dc_hooks(user:Unmanaged.passUnretained(box).toOpaque(),event:{ctx,_,text in guard let ctx,let text else{return};Unmanaged<Callbacks>.fromOpaque(ctx).takeUnretainedValue().event("",String(cString:text))},approve:nil,cancelled:{ctx in guard let ctx else{return 1};return Unmanaged<Callbacks>.fromOpaque(ctx).takeUnretainedValue().isCancelled() ? 1:0})
+      var hooks=dc_hooks(user:Unmanaged.passUnretained(box).toOpaque(),event:{ctx,_,text in guard let ctx,let text else{return};Unmanaged<Callbacks>.fromOpaque(ctx).takeUnretainedValue().event("",String(cString:text))},approve:{ctx,name,text in guard let ctx,let name,let text else{return 0};let box=Unmanaged<Callbacks>.fromOpaque(ctx).takeUnretainedValue();return box.isCancelled() ? 0:box.approve(String(cString:name),String(cString:text))},cancelled:{ctx in guard let ctx else{return 1};return Unmanaged<Callbacks>.fromOpaque(ctx).takeUnretainedValue().isCancelled() ? 1:0})
       let result=self.decode(dc_extensions_call(handle.raw,raw,&hooks),as:WorkspaceReply<T>.self) ?? WorkspaceReply(ok:false,error:"扩展服务未返回有效结果",data:nil)
       DispatchQueue.main.async{if self.identityEpoch==epoch {completion(result)}}
     }
@@ -164,12 +172,15 @@ struct CompatibilityView:View {
   private func chooseNode(){let panel=NSOpenPanel();panel.canChooseDirectories=false;panel.canChooseFiles=true;panel.allowsMultipleSelection=false;if panel.runModal() == .OK,let url=panel.url{node=url.path}}
   private func label(_ state:String)->String {switch state{case "outdated":return "引擎版本不匹配";case "off":return "未开启";case "stopped":return "等待恢复";case "probing":return "检测环境…";case "downloading":return "下载受支持引擎…";case "verifying":return "验证下载内容…";case "starting":return "验证兼容服务…";case "ready":return "已就绪";case "faulted":return "准备未完成";default:return state}}
 }
+private struct ExtensionBindingRequest {let row:ExtensionRow;let version:String}
 struct ExtensionsView:View {
   var onLogs: () -> Void = {}
   @EnvironmentObject var store:WorkspaceStore
   @State private var rows:[ExtensionRow]=[];@State private var faults:[ExtensionFault]=[]
   @State private var error="";@State private var shop=false
   @State private var contributions:[NativeContribution]=[]
+  @State private var configurationRow:ExtensionRow?
+  @State private var requestedBinding:ExtensionBindingRequest?
   @State private var command:ExtensionCommandSelection?
   @State private var python:PythonStatus?;@State private var pythonPath="";@State private var busy=false
   var body:some View {
@@ -180,11 +191,23 @@ struct ExtensionsView:View {
         GroupBox {
           VStack(alignment:.leading,spacing:12){
             HStack {VStack(alignment:.leading,spacing:5){Text(row.selected?.manifest.displayName ?? row.package).font(.headline);Text(row.selected?.manifest.engines.host ?? "").font(.caption).foregroundStyle(.secondary)};Spacer();Text(row.active ? "已启用":row.enabled ? "等待重新启用":"已停用").font(.caption).foregroundStyle(.secondary);Toggle("启用",isOn:Binding(get:{row.active},set:{bind(row,version:row.version,enable:$0)})).toggleStyle(.switch).labelsHidden().disabled(busy || (!row.active && !(row.selected?.reason.isEmpty ?? false)))}
-            HStack {Picker("版本",selection:Binding(get:{row.version},set:{bind(row,version:$0,enable:row.active)})){ForEach(row.versions){Text($0.version+($0.quarantined ? " · 已隔离":"")).tag($0.version)}}.fixedSize();Spacer();Button("更新…"){shop=true};Button("卸载…",role:.destructive){uninstall(row)}.disabled(busy);if row.enabled && !row.active && row.selected?.reason.isEmpty == true {Button("重新启用"){bind(row,version:row.version,enable:true)}};if row.selected?.quarantined == true {Button("重新检查…"){recover(row)}}}
+            HStack {Picker("版本",selection:Binding(get:{row.version},set:{version in DispatchQueue.main.async {bind(row,version:version,enable:row.active)}})){ForEach(row.versions){Text($0.label+($0.quarantined ? " · 已隔离":"")).tag($0.version)}}.fixedSize();Spacer();Button("配置…"){configurationRow=row}.disabled(busy || row.active).help("先停用插件，再编辑该版本的配置");Button("更新…"){shop=true};Button("卸载…",role:.destructive){uninstall(row)}.disabled(busy);if row.enabled && !row.active && row.selected?.reason.isEmpty == true {Button("重新启用"){bind(row,version:row.version,enable:true)}};if row.selected?.quarantined == true {Button("重新检查…"){recover(row)}}}
             if let selected=row.selected,!selected.reason.isEmpty {Label(extensionReason(selected.reason),systemImage:"exclamationmark.circle").font(.caption).foregroundStyle(.orange)}
-            ForEach(contributions.filter{$0.plugin==row.runtimeID && $0.kind=="command"}){item in
-              Button(item.title ?? item.command ?? "扩展命令"){command=ExtensionCommandSelection(source:row.source,package:row.package,command:item.command ?? "",title:item.title ?? row.package)}.disabled(!row.active)
-            }
+            if row.active && row.package=="dsh-catppuccin" {Button("主题设置…"){store.settingsSection="外观"}}
+            let tools=contributions.filter{$0.plugin==row.runtimeID && $0.kind=="command" && !($0.command?.hasPrefix("route:") ?? false) && !($0.command?.hasPrefix("ws:") ?? false)}
+            if !tools.isEmpty {DisclosureGroup("插件工具（\(tools.count)）") {
+              VStack(alignment:.leading,spacing:8){
+                Text("模型调用遵循当前聊天的工具策略，并逐次请求授权。").font(.caption).foregroundStyle(.secondary)
+                ForEach(tools){item in Button(item.title ?? item.command ?? "插件工具"){command=ExtensionCommandSelection(source:row.source,package:row.package,command:item.command ?? "",title:item.title ?? row.package)}.disabled(!row.active)}
+              }.padding(.vertical,8)
+            }}
+            let diagnostics=contributions.filter{$0.plugin==row.runtimeID && ($0.command?.hasPrefix("route:")==true || $0.command?.hasPrefix("ws:")==true)}
+            if !diagnostics.isEmpty {DisclosureGroup("高级兼容诊断") {
+              VStack(alignment:.leading,spacing:8){
+                Text("用于开发与故障定位；执行前请检查参数和当前会话。").font(.caption).foregroundStyle(.secondary)
+                ForEach(diagnostics){item in Button(item.title ?? item.command ?? "兼容接口"){command=ExtensionCommandSelection(source:row.source,package:row.package,command:item.command ?? "",title:item.title ?? row.package)}}
+              }.padding(.vertical,8)
+            }}
             Text("来源：\(row.source)").font(.caption2).foregroundStyle(.secondary).textSelection(.enabled)
           }.padding(12)
         }
@@ -197,9 +220,14 @@ struct ExtensionsView:View {
       }
       if busy {ProgressView()}
       if !error.isEmpty{Text(extensionReason(error)).foregroundStyle(.red).textSelection(.enabled)}
-    }.onAppear(perform:reload).onChange(of:store.pluginFaultNotice){_,_ in reload()}.onChange(of:store.identityEpoch){_,_ in rows=[];faults=[];contributions=[];command=nil;python=nil;pythonPath="";reload()}
+    }.onAppear(perform:reload).onChange(of:store.pluginFaultNotice){_,_ in reload()}.onChange(of:store.identityEpoch){_,_ in rows=[];faults=[];contributions=[];command=nil;requestedBinding=nil;configurationRow=nil;python=nil;pythonPath="";reload()}
       .sheet(isPresented:$shop,onDismiss:reload){VStack {HStack{Text("插件商城").font(.title2);Spacer();Button("完成"){shop=false}};ScrollView{CatalogView(initialKind:"plugin",closeMarketplace:{shop=false})}}.padding(26).frame(width:950,height:680)}
       .sheet(item:$command,onDismiss:reload){selection in ExtensionCommandSheet(selection:selection)}
+      .sheet(item:$configurationRow,onDismiss:reload){row in PluginConfigurationSheet(row:row)}
+      .alert("启用插件？",isPresented:Binding(get:{requestedBinding != nil},set:{if !$0 {requestedBinding=nil}}),presenting:requestedBinding){request in
+        Button("信任并启用"){bind(request.row,version:request.version,enable:true,confirmed:true)}
+        Button("取消",role:.cancel){requestedBinding=nil}
+      } message:{request in Text("\(request.row.package) · \(request.version)\n该扩展以当前系统用户的权限独立运行，可直接读写文件、联网和启动进程。仅启用你信任的版本。停用不会撤销已产生的操作。") }
   }
   private func reload(){reloadContributions();store.extensionRequest(["op":"extensions.list"],as:[ExtensionRow].self){r in rows=r.data ?? [];if let error=r.error{self.error=error}};store.extensionRequest(["op":"python.status"],as:PythonStatus.self){r in python=r.data;if let p=r.data,!p.executable.isEmpty{pythonPath=p.executable}}}
   private func reloadContributions(){store.refreshPluginPages();store.extensionRequest(["op":"extensions.contributions"],as:[NativeContribution].self){r in contributions=r.data ?? []}}
@@ -214,9 +242,9 @@ struct ExtensionsView:View {
     let a=NSAlert();a.messageText="重新检查这个插件？";a.informativeText="检查版本内容与依赖后解除隔离，仍需单独启用。不会重新执行之前失败的命令；有未确认外部效果的插件会继续阻止恢复。";a.addButton(withTitle:"检查版本");a.addButton(withTitle:"取消");guard a.runModal() == .alertFirstButtonReturn else{return}
     store.extensionRequest(["op":"extensions.recover","source":row.source,"package":row.package,"version":row.version],as:[ExtensionRow].self){r in if r.ok{rows=r.data ?? []}else{error=r.error ?? "检查失败"}}
   }
-  private func bind(_ row:ExtensionRow,version:String,enable:Bool){
-    if enable,let selected=row.versions.first(where:{$0.version==version}),selected.manifest.engines.host != "native-theme" {
-      let a=NSAlert();a.messageText="启用“\(selected.manifest.displayName ?? row.package)”？";a.informativeText="该扩展以当前系统用户的权限独立运行，可直接读写文件、联网和启动进程。仅启用你信任的版本。插件的操作不会因停用而自动撤销。";a.addButton(withTitle:"信任并启用");a.addButton(withTitle:"取消");a.buttons[0].keyEquivalent="";a.window.defaultButtonCell=nil;guard a.runModal() == .alertFirstButtonReturn else{return}
+  private func bind(_ row:ExtensionRow,version:String,enable:Bool,confirmed:Bool=false){
+    if enable,!confirmed,let selected=row.versions.first(where:{$0.version==version}),selected.manifest.engines.host != "native-theme" {
+      requestedBinding=ExtensionBindingRequest(row:row,version:version);return
     }
     busy=true;store.extensionRequest(["op":"extensions.bind","source":row.source,"package":row.package,"version":version,"enabled":enable,"acceptHostPermissions":enable],as:[ExtensionRow].self){r in busy=false;if r.ok {rows=r.data ?? [];error=""}else{error=r.error ?? "操作失败";reload()};reloadFaults();reloadContributions();store.refreshThemes()}
   }
@@ -233,6 +261,11 @@ func extensionReason(_ code:String)->String {
   case "compatibility_handshake_failed","compatibility_version_mismatch":return "兼容环境握手未通过，插件安装保持关闭"
   case "client_surface_failed":return "插件界面发生错误，已停用并记录日志"
   case "host_exited":return "插件运行进程已退出，相关插件已停用；请查看错误日志"
+  case "extension_configuration_requires_disable":return "请先停用插件，再编辑配置"
+  case "extension_configuration_changed":return "配置已在其他操作中改变，请重新读取"
+  case "extension_version_changed":return "插件版本已改变，未执行旧版本的调用"
+  case "extension_chat_workspace_unavailable":return "当前聊天工作区不可用，请先检查项目目录"
+  case "invalid_extension_configuration":return "插件配置必须是有效的 JSON 对象，最大 32 KiB"
   case "extension_client_unsupported":return "此插件使用的界面插槽尚不兼容"
   case "extension_client_invalid":return "插件界面入口声明无效"
   case "extension_activation_failed":return "插件激活失败，已停用并保留错误记录"
@@ -240,5 +273,33 @@ func extensionReason(_ code:String)->String {
   case "extension_effect_unknown":return "插件执行结果未知，已隔离宿主；请核对外部效果，系统不会自动重试"
   case "immutable_extension_version_changed":return "相同版本的插件内容已改变，请使用新版本号"
   default:return catalogReason(code)
+  }
+}
+
+private struct PluginConfiguration:Decodable {let config:JSONValue;let hash:String;let active:Bool}
+private struct PluginConfigurationSheet:View {
+  @EnvironmentObject var store:WorkspaceStore
+  @Environment(\.dismiss) private var dismiss
+  let row:ExtensionRow
+  @State private var text="{}"
+  @State private var hash=""
+  @State private var error=""
+  @State private var busy=false
+  var body:some View {
+    VStack(alignment:.leading,spacing:16){
+      Text("插件配置").font(.title2.bold())
+      Text("\(row.selected?.manifest.displayName ?? row.package) · \(row.selected?.label ?? row.version)").foregroundStyle(.secondary)
+      Text("配置按版本保存在当前身份的本地数据目录。保存不会启用插件；启用时由插件校验具体设置。").font(.callout).foregroundStyle(.secondary)
+      TextEditor(text:$text).font(.system(size:13,design:.monospaced)).frame(minHeight:300).border(.quaternary).disabled(busy)
+      if !error.isEmpty {Text(error).foregroundStyle(.red).textSelection(.enabled)}
+      HStack{Button("重新读取",action:load).disabled(busy);Spacer();Button("取消"){dismiss()}.disabled(busy);Button("保存",action:save).buttonStyle(.borderedProminent).disabled(busy || hash.isEmpty)}
+    }.padding(26).frame(width:720,height:520).onAppear(perform:load).onChange(of:store.identityEpoch){_,_ in dismiss()}
+  }
+  private func reference(_ op:String)->[String:Any]{["op":op,"source":row.source,"package":row.package,"version":row.version]}
+  private func load(){busy=true;store.extensionRequest(reference("extensions.config.get"),as:PluginConfiguration.self){r in busy=false;if r.ok,let value=r.data {text=value.config.formatted;hash=value.hash;error=value.active ? "请先停用插件。":""}else{hash="";error=extensionReason(r.error ?? "配置读取失败")}}}
+  private func save(){
+    guard text.utf8.count<=32768,let bytes=text.data(using:.utf8),let config=(try? JSONSerialization.jsonObject(with:bytes)) as? [String:Any] else{error="请输入有效 JSON 对象，最大 32 KiB。";return}
+    var body=reference("extensions.config.save");body["config"]=config;body["expectedHash"]=hash;busy=true
+    store.extensionRequest(body,as:PluginConfiguration.self){r in busy=false;if r.ok{dismiss()}else{error=extensionReason(r.error ?? "配置保存失败")}}
   }
 }

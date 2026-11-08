@@ -1,5 +1,5 @@
 import SwiftUI
-struct InstalledTheme:Decodable,Identifiable {let id:String;let name:String;let scheme:String;let accent:String;let tokens:[String:String]?}
+struct InstalledTheme:Decodable,Identifiable {let id:String;let name:String;let scheme:String;let accent:String;let tokens:[String:String]?;let preference:String?}
 extension WorkspaceStore {
   var themeScheme:ColorScheme? {
     if theme=="dark" {return .dark};if theme=="light" {return .light}

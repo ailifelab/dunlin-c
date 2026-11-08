@@ -1,6 +1,8 @@
 import fs from 'node:fs/promises';import vm from 'node:vm';import assert from 'node:assert/strict';
-const sandbox={console,setTimeout,clearTimeout,queueMicrotask,TextEncoder,TextDecoder,performance};sandbox.window=sandbox;sandbox.globalThis=sandbox;
-const context=vm.createContext(sandbox);vm.runInContext(await fs.readFile('build/v51/dsh-web-runtime/runtime.js','utf8'),context);
+import {createRequire} from 'node:module';import path from 'node:path';
+const require=createRequire(path.resolve('build/v51/dsh-web-test/package.json'));const {JSDOM}=require('jsdom');
+const dom=new JSDOM('<!doctype html><html><head></head><body></body></html>',{url:'https://owned.invalid',runScripts:'outside-only',pretendToBeVisual:true});const sandbox=dom.window;sandbox.console=console;sandbox.TextEncoder=TextEncoder;sandbox.TextDecoder=TextDecoder;
+const context=dom.getInternalVMContext();vm.runInContext(await fs.readFile('build/v51/dsh-web-runtime/runtime.js','utf8'),context);
 const faults=[],surface=await sandbox.DunlinDSH.createSurface('owned-chat',x=>faults.push(x));
 let registration;sandbox.__ModuleLoader__={load:x=>{registration=x}};
 vm.runInContext(await fs.readFile('build/v51/dsh-reference-rc3/files/packages/preset/agent-preset/skills/cordis-plugin-development/templates/decoration/client.js','utf8'),context);
@@ -30,3 +32,5 @@ await Promise.all([first,duplicate,closing]);
 assert.equal(activations,1);assert.equal(releases,1);
 await assert.rejects(concurrent.load(slow,'slow'),/surface disposed/);
 console.log('PASS concurrent load/disposal releases one activation and rejects duplicates.');
+
+dom.window.close();

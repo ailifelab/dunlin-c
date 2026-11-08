@@ -4,7 +4,7 @@
     "zh": "Dunlin 常用 DSH 插件清单"
   },
   "description": {
-    "zh": "常用候选项目索引；不代表 Dunlin 兼容认证。"
+    "zh": "固定版本及适配能力见兼容记录；不代表任意 DSH 功能或版本均已支持。"
   },
   "plugins": [
     {
@@ -20,10 +20,11 @@
       },
       "metadata": {
         "dunlin": {
-          "compatibility": "incompatible",
-          "installable": false,
+          "compatibility": "partial",
+          "installable": true,
           "testedVersion": "1.73.15",
-          "reason": "Missing package: js-yaml；启用失败将自动停用并保留日志。"
+          "reason": "固定版本宿主、目录与收藏已验；安装管理统一使用 Dunlin 安装器，上游完整工作台未接入。",
+          "adapterRevision": 2
         }
       }
     },
@@ -33,17 +34,18 @@
         "zh": "侧栏增强"
       },
       "description": {
-        "zh": "DSH 侧栏导航增强，原生界面适配仍待验证。"
+        "zh": "侧栏宿主 API 与文件通知适配；完整 React 侧栏未接入。"
       },
       "repository": {
         "url": "https://github.com/omdsh-dev/DSH-better-sidebar"
       },
       "metadata": {
         "dunlin": {
-          "compatibility": "incompatible",
-          "installable": false,
+          "compatibility": "partial",
+          "installable": true,
           "testedVersion": "0.30.1",
-          "reason": "发布包超出当前文件布局或大小限制，尚不能安装。"
+          "reason": "固定版本宿主文件操作与 WebSocket 通知已验；上游完整 React 侧栏未接入。",
+          "adapterRevision": 2
         }
       }
     },
@@ -60,10 +62,11 @@
       },
       "metadata": {
         "dunlin": {
-          "compatibility": "incompatible",
-          "installable": false,
+          "compatibility": "partial",
+          "installable": true,
           "testedVersion": "0.11.0",
-          "reason": "发布包超出当前文件布局或大小限制，尚不能安装。"
+          "reason": "固定版本附件保存、图像规范化及 SDK 工具接入已验；真实图像服务需配置后联调，原始画布界面未接入。",
+          "adapterRevision": 2
         }
       }
     },
@@ -80,10 +83,11 @@
       },
       "metadata": {
         "dunlin": {
-          "compatibility": "incompatible",
-          "installable": false,
+          "compatibility": "partial",
+          "installable": true,
           "testedVersion": "0.6.34",
-          "reason": "Missing package: @deepseek-ai/dsh-session；启用失败将自动停用并保留日志。"
+          "reason": "固定版本快照、列表与原生确认的工作区回退已验；SDK 会话分叉不等同于原生聊天恢复。",
+          "adapterRevision": 2
         }
       }
     },
@@ -93,17 +97,18 @@
         "zh": "Catppuccin 主题"
       },
       "description": {
-        "zh": "DSH 配色主题，Dunlin 主题映射仍待验证。"
+        "zh": "四种配色与原始主题设置，支持原生菜单同步与本地持久化。"
       },
       "repository": {
         "url": "https://github.com/zhijun-dai/Catppuccin-dsh-theme"
       },
       "metadata": {
         "dunlin": {
-          "compatibility": "partial-host",
-          "installable": false,
+          "compatibility": "compatible",
+          "installable": true,
           "testedVersion": "0.2.6",
-          "reason": "宿主状态读写已验证；完整主题配色与原始客户端界面仍待适配。"
+          "reason": "四种配色及原始设置行已验，支持统一主题选择、辉光、玻璃控件与重启恢复。",
+          "adapterRevision": 2
         }
       }
     },
@@ -120,10 +125,11 @@
       },
       "metadata": {
         "dunlin": {
-          "compatibility": "incompatible",
-          "installable": false,
+          "compatibility": "partial",
+          "installable": true,
           "testedVersion": "0.57.0",
-          "reason": "发布包超出当前文件布局或大小限制，尚不能安装。"
+          "reason": "固定版本看板分组/卡片持久化与 SDK 工具已验；完整 React 看板和原生项目双向同步未接入。",
+          "adapterRevision": 2
         }
       }
     }

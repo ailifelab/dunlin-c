@@ -5,27 +5,43 @@ import shutil,json,hashlib,sys,subprocess
 root=Path(__file__).resolve().parents[1]
 dest=root/(sys.argv[1] if len(sys.argv)>1 else 'build/v51/dsh-assets')
 assert dest.is_relative_to(root/'build')
-compiler=root/'build/v51/dsh-toolchain'
+compiler=root/'build/v51/dsh-toolchain-v2'
+assert (compiler/'package-lock.json').read_bytes()==(root/'hosts/node-dsh/toolchain-lock.json').read_bytes(),'Rebuild the pinned optional host toolchain'
 assert json.loads((compiler/'node_modules/esbuild/package.json').read_text())['version']=='0.28.2','Run npm ci --prefix build/v51/dsh-toolchain --ignore-scripts with the pinned lockfile'
 # This is a build-time dependency, independent of the opt-in runtime engine.
-web=root/'build/v51/dsh-web-toolchain';web.mkdir(parents=True,exist_ok=True)
+web=root/'build/v51/dsh-web-toolchain-v2';web.mkdir(parents=True,exist_ok=True)
 lock=root/'compat/dsh/web/package-lock.json'
 if not (web/'package-lock.json').exists() or (web/'package-lock.json').read_bytes()!=lock.read_bytes() or not (web/'node_modules/react/package.json').exists():
  shutil.copyfile(root/'compat/dsh/web/package.json',web/'package.json');shutil.copyfile(lock,web/'package-lock.json')
- subprocess.run(['npm','ci','--prefix',str(web),'--ignore-scripts','--no-audit','--no-fund'],check=True)
-subprocess.run(['node',str(root/'scripts/build-dsh-web.mjs')],cwd=root,check=True)
+ subprocess.run(['npm','ci','--prefix',str(web),'--ignore-scripts','--no-audit','--no-fund','--userconfig','/dev/null','--cache',str(root/'build/v51/dsh-dependency-cache')],check=True)
+subprocess.run(['node',str(root/'scripts/build-dsh-web.mjs'),str(web)],cwd=root,check=True)
 dest.mkdir(parents=True,exist_ok=True)
 (dest/'web').mkdir(parents=True,exist_ok=True)
 shutil.copyfile(root/'build/v51/dsh-web-runtime/runtime.js',dest/'web/runtime.js')
+shutil.copyfile(root/'build/v51/dsh-web-runtime/runtime.css',dest/'web/runtime.css')
 shutil.copyfile(root/'compat/dsh/web/pin.json',dest/'web/pin.json')
 for name in ['react','react-dom','use-sync-external-store']:
  shutil.copyfile(web/'node_modules'/name/'LICENSE',dest/'web'/(name+'-LICENSE.txt'))
 shutil.copyfile(root/'compat/dsh/web/vendor/ui-slots/LICENSE',dest/'web/DSH-LICENSE.txt')
+# Retain notices for every locked browser dependency, including embedded fonts.
+notices=dest/'web/licenses';notices.mkdir(exist_ok=True)
+packages=json.loads(lock.read_text())['packages'];licenses=[]
+for relative,metadata in packages.items():
+ if not relative:continue
+ directory=web/relative
+ if not directory.is_dir():continue
+ name=relative.replace('node_modules/','').replace('/','__')
+ files=[]
+ for item in directory.iterdir():
+  if item.is_file() and item.name.lower().startswith(('license','licence','copying','notice')):
+   output=notices/(name+'__'+item.name);shutil.copyfile(item,output);files.append(output.name)
+ licenses.append({'package':relative,'version':metadata.get('version'),'license':metadata.get('license'),'files':files})
+(notices/'index.json').write_text(json.dumps(licenses,indent=2)+'\n')
 
 shutil.copytree(root/'compat/dsh/vendor',dest/'compat/dsh/vendor',dirs_exist_ok=True)
 shutil.copyfile(root/'compat/dsh/pin.json',dest/'compat/dsh/pin.json')
 (dest/'hosts/node-dsh').mkdir(parents=True,exist_ok=True)
-shutil.copyfile(root/'hosts/node-dsh/worker.mjs',dest/'hosts/node-dsh/worker.mjs')
+for source in (root/'hosts/node-dsh').glob('*.mjs'):shutil.copyfile(source,dest/'hosts/node-dsh'/source.name)
 (dest/'hosts/python').mkdir(parents=True,exist_ok=True)
 shutil.copyfile(root/'hosts/python/worker.py',dest/'hosts/python/worker.py')
 shutil.copytree(compiler/'node_modules',dest/'toolchain/node_modules',dirs_exist_ok=True,ignore=shutil.ignore_patterns('.bin'))

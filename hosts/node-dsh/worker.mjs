@@ -9,13 +9,17 @@ import fsSync from 'node:fs';
 import {Readable} from 'node:stream';
 // Preserve original TypeScript locations in bounded local fault diagnostics.
 process.setSourceMapsEnabled(true);
+if(!/^[a-f0-9]{64}$/.test(process.env.DUNLIN_WORKER_NONCE ?? ''))throw Error('Native owner handshake required');
 const toolchain=path.resolve(process.argv[3]);
 const esbuild=createRequire(path.join(toolchain,'package.json'))('esbuild');
 const compatibilityRoot=path.resolve(process.argv[2]);
 registerHooks({resolve(specifier,context,next){
  const map={'@deepseek-ai/cordis':'cordis','@deepseek-ai/cosmokit':'cosmokit'};
  if(map[specifier])return {url:pathToFileURL(path.join(compatibilityRoot,'vendor',map[specifier],'src/index.ts')).href,shortCircuit:true};
- return next(specifier,context);
+ try{return next(specifier,context)}catch(error){
+  if(error.code!=='ERR_MODULE_NOT_FOUND'||specifier.startsWith('.')||specifier.startsWith('/')||specifier.startsWith('node:'))throw error;
+  return next(specifier,{...context,parentURL:pathToFileURL(path.join(toolchain,'package.json')).href});
+ }
 },load(url,context,next){
  if(url.startsWith('file:')&&/\.(ts|tsx)$/.test(fileURLToPath(url))){
   const source=fsSync.readFileSync(fileURLToPath(url),'utf8');
@@ -64,38 +68,20 @@ class NativeThemes extends Service {
    if(!themeTokens[name]||typeof value!=='string'||!/^#[0-9a-fA-F]{6}$/.test(value))throw Error('unsupported native theme token');
    tokens[themeTokens[name]]=value;
   }
-  const key=owned(this.ctx,'dsh-theme:'+definition.id,{kind:'theme',name:definition.id,scheme:definition.colorScheme,tokens},contributions);
+  const key=owned(this.ctx,'dsh-theme:'+definition.id,{kind:'theme',name:definition.id,title:definition.name ?? definition.id,scheme:definition.colorScheme,tokens},contributions);
   themeNames.add(definition.id);let disposed=false;
   const dispose=()=>{if(disposed)return;disposed=true;contributions.delete(key);themeNames.delete(definition.id)};
   this.ctx.effect(()=>dispose);return dispose;
  }
 }
 new NativeThemes(root);
-// Buffered exact-route adapter. No listening socket or DSH package-manager API.
-// Route handlers run in the same opt-in, trusted host as other plugin commands.
-class NativeWebRoutes extends Service {
- constructor(ctx){super(ctx,'webServer')}
- register(route){
-  if(route?.kind!=='exact'||typeof route.path!=='string'||!/^\/[a-zA-Z0-9_./-]{1,256}$/.test(route.path)||typeof route.handler!=='function')throw Error('unsupported exact route');
-  const command='route:'+route.path;
-  const key=owned(this.ctx,command,async args=>{
-   const method=args.method ?? 'GET';if(!['GET','PUT'].includes(method))throw Error('unsupported route method');
-   const body=JSON.stringify(args.body ?? {});if(Buffer.byteLength(body)>65536)throw Error('route body exceeds limit');
-   const request=Readable.from(method==='PUT'?[body]:[]);request.method=method;request.url=route.path;request.headers={'content-type':'application/json'};
-   return await new Promise((resolve,reject)=>{
-    let code=200,bytes='',ended=false;
-    const append=data=>{if(ended)return false;const value=String(data);if(Buffer.byteLength(bytes)+Buffer.byteLength(value)>65536){ended=true;clearTimeout(timer);reject(Error('route response exceeds limit'));return false}bytes+=value;return true};
-    // A timed-out handler may still hold effects; terminate so C records unknown.
-    const timer=setTimeout(()=>process.exit(74),5000);
-    const response={writeHead(status){code=status;return this},setHeader(){return this},end(data=''){if(!append(data))return;ended=true;clearTimeout(timer);try{resolve({status:code,body:JSON.parse(bytes)})}catch{reject(Error('unsupported non-JSON route response'))}},write(data){return append(data)}};
-    Promise.resolve().then(()=>route.handler(request,response)).catch(error=>{clearTimeout(timer);reject(error)});
-   });
-  },commands);
-  const contribution=owned(this.ctx,command,{kind:'command',title:route.path,command},contributions);
-  let disposed=false;const dispose=()=>{if(disposed)return;disposed=true;commands.delete(key);contributions.delete(contribution)};this.ctx.effect(()=>dispose);return dispose;
- }
-}
-new NativeWebRoutes(root);
+const {installRoutes}=await import('./routes.mjs');
+const routes=installRoutes(root,{owned,commands,contributions});
+
+const {installQuestions}=await import('./questions.mjs');
+const questions=installQuestions(root);
+const {composeServices}=await import('./services.mjs');
+const services=await composeServices(root,{owned,commands,contributions});
 
 const methods={
  'system.info':()=>({kind:'node-dsh',node:process.versions.node,dsh:pin.dsh,commit:pin.commit,cordis:pin.cordis,services:['dunlin.contributions@1','dsh.theme.register@1','dsh.webServer.exact-json@1'],permissionModel:'trusted-full-host'}),
@@ -107,12 +93,27 @@ const methods={
   const required=Array.isArray(shape.inject)?shape.inject:Object.entries(shape.inject ?? {}).filter(([,required])=>required).map(([name])=>name);
   const missing=required.filter(name=>!root.get(name));if(missing.length)throw Object.assign(Error('Required services unavailable'),{code:'DUNLIN_MISSING_SERVICES',missingServices:missing});
   if(typeof shape.apply!=='function')throw Error('unsupported plugin entry');
-  const wrapped={...shape,apply(ctx,config){owners.set(ctx.fiber,p.id);return shape.apply(ctx,config)}};
+  const wrapped={...shape,apply(ctx,config){
+   owners.set(ctx.fiber,p.id);
+   const projectThemes=()=>{
+    const packageFile=path.join(base,'package.json');let pkg;try{pkg=JSON.parse(fsSync.readFileSync(packageFile,'utf8'))}catch{return}
+    if(pkg.name!=='dsh-catppuccin')return;
+    for(const flavor of ['latte','frappe','macchiato','mocha']){
+     const file=path.join(base,'themes','catppuccin-'+flavor+'.json');if(fsSync.statSync(file).size>65536)throw Error('theme resource exceeds limit');
+     const definition=JSON.parse(fsSync.readFileSync(file,'utf8'));const projection={...definition,tokens:{}};
+     for(const key of Object.keys(themeTokens))if(definition.tokens[key]!==undefined)projection.tokens[key]=definition.tokens[key];
+     ctx.theme.register(projection);
+    }
+   };
+   const result=shape.apply(ctx,config);if(result&&typeof result.then==='function')return result.then(value=>{projectThemes();return value});projectThemes();return result;
+  }};
   let fiber;try {fiber=await root.plugin(wrapped,p.config ?? {});if(!fiber||fiber.state!==FiberState.ACTIVE)throw Error('plugin did not activate');plugins.set(p.id,fiber);return {id:p.id,state:'active'}}catch(error){if(fiber)await fiber.dispose();throw error}
  },
- 'plugins.deactivate':async p=>{const fiber=plugins.get(p.id);if(!fiber)return {state:'inactive'};await fiber.dispose();plugins.delete(p.id);return {state:'inactive'}},
- 'plugins.command':async p=>{const command=commands.get(p.command);if(!command||command.owner!==p.plugin)throw Object.assign(Error('unknown command'),{code:-32601});return await command.value(p.arguments ?? {})},
+ 'plugins.deactivate':async p=>{questions.cancel(p.id);const fiber=plugins.get(p.id);if(!fiber)return {state:'inactive'};await fiber.dispose();plugins.delete(p.id);return {state:'inactive'}},
+ 'plugins.command':async p=>questions.run(p.plugin,p.nativeQuestions===true,()=>services.invoke(p.nativeContext,async()=>{if(p.command===p.plugin+':http.body')return routes.body(p.plugin,p.arguments ?? {});if(p.command===p.plugin+':http')return routes.request(p.plugin,p.arguments ?? {});const command=commands.get(p.command);if(!command||command.owner!==p.plugin)throw Object.assign(Error('unknown command'),{code:-32601});return await command.value(p.arguments ?? {})})),
+ 'plugins.answer':async p=>questions.answer(p.plugin,p),
  'plugins.contributions':()=>[...contributions].map(([id,{owner,value}])=>({...value,id,plugin:owner})),
+ 'plugins.tools':()=>services.tools(),
  'plugins.list':()=>[...plugins.keys()]
 };
 function diagnostic(error){

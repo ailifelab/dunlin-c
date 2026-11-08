@@ -9,7 +9,7 @@ def tar(name='package/main.js',kind=tarfile.REGTYPE,data=b'export {}',link=''):
  return out.getvalue()
 with tempfile.TemporaryDirectory(prefix='dunlin-tar-') as tmp:
  root=pathlib.Path(tmp)
- for i,(raw,expected) in enumerate([(tar(),True),(tar('package/../../outside'),False),(tar('/outside'),False),(tar('package/x',tarfile.SYMTYPE,link='/tmp/outside'),False),(tar('package/x',tarfile.LNKTYPE,link='package/main.js'),False),(tar('package/dunlin.json'),False),(tar('package/a\\b'),False),(tar('package/main.js')[:515],False),(b'x'*512,False),(tar(data=b'x'*1048577),False)]):
+ for i,(raw,expected) in enumerate([(tar(),True),(tar('package/../../outside'),False),(tar('/outside'),False),(tar('package/x',tarfile.SYMTYPE,link='/tmp/outside'),False),(tar('package/x',tarfile.LNKTYPE,link='package/main.js'),False),(tar('package/dunlin.json'),False),(tar('package/a\\b'),False),(tar('package/main.js')[:515],False),(b'x'*512,False),(tar(data=b'x'*(16*1024*1024+1)),False)]):
   folder=root/str(i);folder.mkdir();fd=os.open(folder,os.O_RDONLY|os.O_DIRECTORY)
   try:assert bool(fn(fd,raw,len(raw)))==expected,(i,expected)
   finally:os.close(fd)
