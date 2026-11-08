@@ -1,0 +1,5 @@
+{
+  "name": "@deepseek-ai/cosmokit",
+  "type": "module",
+  "exports": "./src/index.ts"
+}

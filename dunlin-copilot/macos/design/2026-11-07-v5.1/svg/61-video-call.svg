@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1440" height="1000" viewBox="0 0 1440 1000" role="img" aria-labelledby="title desc"><title id="title">52 / 视频通话</title><desc id="desc">独立通话窗口；示例 AI 不输出视频。挂断结束采集与连接，文本和已启用的关键帧可在聊天中回看。。Dunlin C macOS 待确认设计稿，全部示例数据为虚构。</desc><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="#74859C"/></marker><linearGradient id="glassL" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FFFFFF" stop-opacity=".90"/><stop offset=".5" stop-color="#E4ECF8" stop-opacity=".84"/><stop offset="1" stop-color="#E8E3F2" stop-opacity=".91"/></linearGradient><linearGradient id="glassD" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#3C4351" stop-opacity=".94"/><stop offset=".5" stop-color="#252C37" stop-opacity=".96"/><stop offset="1" stop-color="#302D3C" stop-opacity=".94"/></linearGradient><linearGradient id="toolbarL" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FFFFFF" stop-opacity=".96"/><stop offset="1" stop-color="#E4EAF2" stop-opacity=".89"/></linearGradient><linearGradient id="toolbarD" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#4A5360" stop-opacity=".97"/><stop offset="1" stop-color="#2C323C" stop-opacity=".96"/></linearGradient></defs>
+<rect x="0" y="0" width="1440" height="1000" rx="0" fill="#EAEDF1"/>
+<text x="40" y="39" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="15" font-weight="600" text-anchor="start" fill="#5E665F">DUNLIN C / macOS</text>
+<text x="40" y="73" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="25" font-weight="600" text-anchor="start" fill="#222923">52 / 视频通话</text>
+<text x="1400" y="42" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#747B74">DESIGN REVIEW  ·  2026.11.07  ·  V5.1</text>
+<text x="40" y="966" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#666E67">独立通话窗口；示例 AI 不输出视频。挂断结束采集与连接，文本和已启用的关键帧可在聊天中回看。</text>
+<text x="1400" y="966" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#666E67">61-video-call</text>
+<rect x="310" y="108" width="820" height="815" rx="18" fill="#15191F" stroke="#313946" stroke-width="1"/>
+<circle cx="336" cy="132" r="6" fill="#ED6A5E"/>
+<circle cx="356" cy="132" r="6" fill="#F4BF50"/>
+<circle cx="376" cy="132" r="6" fill="#61C454"/>
+<text x="720" y="180" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="middle" fill="#EEF2F8">Dunlin C · 视频通话</text>
+<rect x="340" y="212" width="760" height="383" rx="12" fill="#27313A"/>
+<rect x="858" y="235" width="214" height="130" rx="9" fill="#4B5A64"/>
+<text x="965" y="303" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="15" font-weight="400" text-anchor="middle" fill="#E6EDF4">我的摄像头预览</text>
+<text x="965" y="338" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="#B8C7D3">示例画面</text>
+<circle cx="624" cy="363" r="52" fill="#385371"/>
+<text x="624" y="379" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="42" font-weight="600" text-anchor="middle" fill="#EDF4FF">D</text>
+<text x="624" y="464" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="19" font-weight="400" text-anchor="middle" fill="#EDF4FF">AI 正在查看你分享的画面</text>
+<text x="624" y="502" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#B8C7D3">对方未提供视频画面</text>
+<text x="720" y="633" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="#B4BFCC">03:24  ·  本地 AI 服务  ·  陈舟</text>
+<text x="720" y="675" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#B4BFCC">文本记录开启 · 关键帧记录开启</text>
+<circle cx="531" cy="770" r="33" fill="#303A47"/>
+<path d="M7 4a3 3 0 0 1 6 0v6a3 3 0 0 1-6 0zM4 9v2a6 6 0 0 0 12 0V9M10 17v3M6 20h8" transform="translate(521 760)" fill="none" stroke="#FFFFFF" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="531" y="829" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="#DFE8F4">静音</text>
+<circle cx="720" cy="770" r="33" fill="#303A47"/>
+<path d="M1 4h12v12H1zM13 8l6-4v12l-6-4" transform="translate(710 760)" fill="none" stroke="#FFFFFF" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="720" y="829" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="#DFE8F4">关闭摄像头</text>
+<circle cx="909" cy="770" r="33" fill="#CF4C54"/>
+<path d="M2 12q8-9 16 0l-3 4-4-3v-3H9v3l-4 3z" transform="translate(899 760)" fill="none" stroke="#FFFFFF" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="909" y="829" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="#DFE8F4">挂断</text>
+<a href="64-call-replay.svg" xlink:href="64-call-replay.svg">
+<text x="720" y="883" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#85B6FF">查看文字记录  →</text>
+</a>
+</svg>

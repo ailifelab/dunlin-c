@@ -1,0 +1,4 @@
+{
+  "max_output_tokens": 4096,
+  "response_bytes": 65536
+}

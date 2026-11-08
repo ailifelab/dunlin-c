@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "sources": [
+    {
+      "id": "dunlin-common",
+      "title": "Dunlin 常用 DSH 插件清单",
+      "url": "https://raw.githubusercontent.com/ailifelab/dunlin-c/main/catalogs/dsh-plugins.json"
+    },
+    {
+      "id": "dshseek",
+      "title": "DSHSeek 社区索引（第三方）",
+      "url": "https://dshseek.com/market/dsh-index.json"
+    }
+  ]
+}

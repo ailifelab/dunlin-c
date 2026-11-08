@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1440" height="1000" viewBox="0 0 1440 1000" role="img" aria-labelledby="title desc"><title id="title">执行与提交 / 修改文件和命令都要有凭据</title><desc id="desc">新设计把标准会话、工具效果与恢复检查点原子提交；超时或取消不等于撤销外部效果。。Dunlin C macOS 待确认设计稿，全部示例数据为虚构。</desc><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="#74859C"/></marker><linearGradient id="glassL" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FFFFFF" stop-opacity=".90"/><stop offset=".5" stop-color="#E4ECF8" stop-opacity=".84"/><stop offset="1" stop-color="#E8E3F2" stop-opacity=".91"/></linearGradient><linearGradient id="glassD" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#3C4351" stop-opacity=".94"/><stop offset=".5" stop-color="#252C37" stop-opacity=".96"/><stop offset="1" stop-color="#302D3C" stop-opacity=".94"/></linearGradient><linearGradient id="toolbarL" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FFFFFF" stop-opacity=".96"/><stop offset="1" stop-color="#E4EAF2" stop-opacity=".89"/></linearGradient><linearGradient id="toolbarD" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#4A5360" stop-opacity=".97"/><stop offset="1" stop-color="#2C323C" stop-opacity=".96"/></linearGradient></defs>
+<rect x="0" y="0" width="1440" height="1000" rx="0" fill="#EAEDF1"/>
+<text x="40" y="39" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="15" font-weight="600" text-anchor="start" fill="#5E665F">DUNLIN C / macOS</text>
+<text x="40" y="73" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="25" font-weight="600" text-anchor="start" fill="#222923">执行与提交 / 修改文件和命令都要有凭据</text>
+<text x="1400" y="42" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#747B74">DESIGN REVIEW  ·  2026.11.07  ·  V5.1</text>
+<text x="40" y="966" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#666E67">新设计把标准会话、工具效果与恢复检查点原子提交；超时或取消不等于撤销外部效果。</text>
+<text x="1400" y="966" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#666E67">02-run-lifecycle</text>
+<rect x="40" y="98" width="1360" height="830" rx="14" fill="#FAFBFD"/>
+<rect x="77" y="143" width="622" height="142" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="99" y="176" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">1  冻结本轮上下文</text>
+<text x="99" y="207" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">chatID / principal / project / profile / revision</text>
+<path d="M699 214 L719 214" fill="none" stroke="#74859C" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="721" y="143" width="622" height="142" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="743" y="176" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">2  生成工具提议</text>
+<text x="743" y="207" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">路径 / 命令 / 参数 / 预期文件哈希</text>
+<path d="M1043 285 L1043 308 L388 308 L388 329" fill="none" stroke="#74859C" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="77" y="331" width="622" height="142" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="99" y="364" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">3  校验与审批</text>
+<text x="99" y="395" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">权限只能保持或增强；已更改参数重新审批</text>
+<path d="M699 402 L719 402" fill="none" stroke="#74859C" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="721" y="331" width="622" height="142" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="743" y="364" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">4  持久化 pending</text>
+<text x="743" y="395" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">保存最终参数摘要，然后才允许执行</text>
+<path d="M1043 473 L1043 496 L388 496 L388 517" fill="none" stroke="#74859C" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="77" y="519" width="622" height="142" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="99" y="552" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">5  执行并观察</text>
+<text x="99" y="583" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">Patch 原子写入 / 子进程受管 / 真实输出</text>
+<path d="M699 590 L719 590" fill="none" stroke="#74859C" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="721" y="519" width="622" height="142" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="743" y="552" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">6  原子提交结果</text>
+<text x="743" y="583" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">会话 + 工具事实 + 检查点 + revision</text>
+<rect x="77" y="748" width="622" height="128" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="99" y="781" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">并发修改 → 冲突</text>
+<text x="99" y="812" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">写前重新检查文件身份与哈希；不覆盖用户新改动。</text>
+<text x="99" y="837" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">回退也是一次新写入，需要重新校验；命令不承诺可回滚。</text>
+<rect x="721" y="748" width="622" height="128" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="743" y="781" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">执行状态未知 → 保留屏障</text>
+<text x="743" y="812" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">取消 / 断连后效果不明，保持 pending / unknown。</text>
+<text x="743" y="837" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">切模型、删缓存或重启都不能绕过重复执行防护。</text>
+</svg>

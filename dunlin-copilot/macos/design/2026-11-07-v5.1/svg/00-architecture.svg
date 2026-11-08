@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1440" height="1000" viewBox="0 0 1440 1000" role="img" aria-labelledby="title desc"><title id="title">软件架构 / C 核心服务，原生界面与多语言扩展</title><desc id="desc">V3 · 共享能力仅面向 macOS / Linux / Windows；本轮全部为设计，未开始应用开发。。Dunlin C macOS 待确认设计稿，全部示例数据为虚构。</desc><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="#74859C"/></marker><linearGradient id="glassL" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FFFFFF" stop-opacity=".90"/><stop offset=".5" stop-color="#E4ECF8" stop-opacity=".84"/><stop offset="1" stop-color="#E8E3F2" stop-opacity=".91"/></linearGradient><linearGradient id="glassD" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#3C4351" stop-opacity=".94"/><stop offset=".5" stop-color="#252C37" stop-opacity=".96"/><stop offset="1" stop-color="#302D3C" stop-opacity=".94"/></linearGradient><linearGradient id="toolbarL" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FFFFFF" stop-opacity=".96"/><stop offset="1" stop-color="#E4EAF2" stop-opacity=".89"/></linearGradient><linearGradient id="toolbarD" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#4A5360" stop-opacity=".97"/><stop offset="1" stop-color="#2C323C" stop-opacity=".96"/></linearGradient></defs>
+<rect x="0" y="0" width="1440" height="1000" rx="0" fill="#EAEDF1"/>
+<text x="40" y="39" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="15" font-weight="600" text-anchor="start" fill="#5E665F">DUNLIN C / macOS</text>
+<text x="40" y="73" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="25" font-weight="600" text-anchor="start" fill="#222923">软件架构 / C 核心服务，原生界面与多语言扩展</text>
+<text x="1400" y="42" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#747B74">DESIGN REVIEW  ·  2026.11.07  ·  V5.1</text>
+<text x="40" y="966" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#666E67">V3 · 共享能力仅面向 macOS / Linux / Windows；本轮全部为设计，未开始应用开发。</text>
+<text x="1400" y="966" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#666E67">00-architecture</text>
+<rect x="40" y="98" width="1360" height="830" rx="14" fill="#FAFBFD"/>
+<rect x="76" y="142" width="404" height="143" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="98" y="175" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">客户端与设备输入</text>
+<text x="98" y="206" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">macOS：SwiftUI / AppKit / WKWebView</text>
+<text x="98" y="231" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">桌面身份切换；设备端人脸 / 声纹输入</text>
+<rect x="504" y="142" width="404" height="143" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="526" y="175" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">统一 C 服务入口</text>
+<text x="526" y="206" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">版本化 ABI / IPC · IdentityContext</text>
+<text x="526" y="231" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">runID / epoch / scope / 能力检查</text>
+<rect x="932" y="142" width="404" height="143" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="954" y="175" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">平台端口</text>
+<text x="954" y="206" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">文件 / 进程 / 凭据 / 提权 / 音视频</text>
+<text x="954" y="231" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">macOS / Linux / Windows 分别实现</text>
+<path d="M480 213 L502 213" fill="none" stroke="#74859C" stroke-width="1.6" marker-end="url(#arrow)"/>
+<path d="M908 213 L930 213" fill="none" stroke="#74859C" stroke-width="1.6" marker-end="url(#arrow)"/>
+<path d="M706 285 L706 323" fill="none" stroke="#74859C" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="76" y="323" width="1260" height="117" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="98" y="356" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">C Desktop Agent Services · 可嵌套插件，脱离 UI 运行</text>
+<text x="98" y="387" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">Conversation / Context / Identity / GraphStore / Memory / RAG / SkillRegistry / CatalogRegistry</text>
+<text x="98" y="412" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">AgentSupervisor + ProjectCoordination + ToolBroker + GrantBroker + MediaSession；微内核保留 Scope / Service / Event</text>
+<rect x="76" y="481" width="404" height="170" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="98" y="514" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">一致的事实与关系</text>
+<text x="98" y="545" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">GraphStore：人物 / 项目 / 来源 / 版本</text>
+<text x="98" y="570" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">事务事实库 + 索引 + BlobStore</text>
+<text x="98" y="595" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">模型历史、执行凭据是可恢复真源</text>
+<path d="M278 440 L278 479" fill="none" stroke="#74859C" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="504" y="481" width="404" height="170" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="526" y="514" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">Agent 与工具执行</text>
+<text x="526" y="545" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">父子任务树 + 跨聊天消息与任务板</text>
+<text x="526" y="570" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">项目编辑 / 命令 / 冲突 / 授权租约</text>
+<text x="526" y="595" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">同一套持久准入与副作用屏障</text>
+<path d="M706 440 L706 479" fill="none" stroke="#74859C" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="932" y="481" width="404" height="170" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="954" y="514" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">记忆与知识检索</text>
+<text x="954" y="545" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">身份范围 → 全文 / 向量 → 图扩展</text>
+<text x="954" y="570" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">来源与版本校验 → 排序 → 引用</text>
+<text x="954" y="595" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">偏好、印象、文档和技能分工</text>
+<path d="M1134 440 L1134 479" fill="none" stroke="#74859C" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="76" y="704" width="404" height="171" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="98" y="737" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">Node / TypeScript Host</text>
+<text x="98" y="768" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">固定 DSH / Cordis 后端兼容</text>
+<text x="98" y="793" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">主题 tokens / React 兼容容器</text>
+<text x="98" y="818" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">不替代 C 的会话与权限权威</text>
+<path d="M278 651 L278 702" fill="none" stroke="#74859C" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="504" y="704" width="404" height="171" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="526" y="737" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">Python Worker Host</text>
+<text x="526" y="768" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">独立进程 · stdio / 本地 IPC</text>
+<text x="526" y="793" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">JSON 控制 + 文件 / Arrow 数据面</text>
+<text x="526" y="818" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">逐包协议适配，非任意包即插即用</text>
+<path d="M706 651 L706 702" fill="none" stroke="#74859C" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="932" y="704" width="404" height="171" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="954" y="737" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">AI 与媒体适配器</text>
+<text x="954" y="768" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">文本协议 / Realtime / ASR / TTS</text>
+<text x="954" y="793" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">语音、视频能力独立协商</text>
+<text x="954" y="818" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">转录与关键帧可回看</text>
+<path d="M1134 651 L1134 702" fill="none" stroke="#74859C" stroke-width="1.6" marker-end="url(#arrow)"/>
+</svg>

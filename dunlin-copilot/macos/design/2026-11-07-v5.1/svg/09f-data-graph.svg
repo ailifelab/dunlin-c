@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1440" height="1000" viewBox="0 0 1440 1000" role="img" aria-labelledby="title desc"><title id="title">关系图示例 / 成员关系不等于共享私人记忆</title><desc id="desc">示例人物与资料为虚构。每条关系、来源和派生结果都携带范围；检索逐跳检查权限。。Dunlin C macOS 待确认设计稿，全部示例数据为虚构。</desc><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="#74859C"/></marker><linearGradient id="glassL" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FFFFFF" stop-opacity=".90"/><stop offset=".5" stop-color="#E4ECF8" stop-opacity=".84"/><stop offset="1" stop-color="#E8E3F2" stop-opacity=".91"/></linearGradient><linearGradient id="glassD" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#3C4351" stop-opacity=".94"/><stop offset=".5" stop-color="#252C37" stop-opacity=".96"/><stop offset="1" stop-color="#302D3C" stop-opacity=".94"/></linearGradient><linearGradient id="toolbarL" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FFFFFF" stop-opacity=".96"/><stop offset="1" stop-color="#E4EAF2" stop-opacity=".89"/></linearGradient><linearGradient id="toolbarD" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#4A5360" stop-opacity=".97"/><stop offset="1" stop-color="#2C323C" stop-opacity=".96"/></linearGradient></defs>
+<rect x="0" y="0" width="1440" height="1000" rx="0" fill="#EAEDF1"/>
+<text x="40" y="39" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="15" font-weight="600" text-anchor="start" fill="#5E665F">DUNLIN C / macOS</text>
+<text x="40" y="73" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="25" font-weight="600" text-anchor="start" fill="#222923">关系图示例 / 成员关系不等于共享私人记忆</text>
+<text x="1400" y="42" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#747B74">DESIGN REVIEW  ·  2026.11.07  ·  V5.1</text>
+<text x="40" y="966" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#666E67">示例人物与资料为虚构。每条关系、来源和派生结果都携带范围；检索逐跳检查权限。</text>
+<text x="1400" y="966" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#666E67">09f-data-graph</text>
+<rect x="40" y="98" width="1360" height="830" rx="14" fill="#FAFBFD"/>
+<rect x="76" y="156" width="336" height="106" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="98" y="189" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">Person · 陈舟</text>
+<text x="98" y="220" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">principal A</text>
+<rect x="538" y="156" width="336" height="106" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="560" y="189" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">Household · 我们的家</text>
+<text x="560" y="220" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">household H</text>
+<rect x="1000" y="156" width="336" height="106" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="1022" y="189" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">Person · 林岚</text>
+<text x="1022" y="220" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">principal B</text>
+<path d="M412 209 L536 209" fill="none" stroke="#74859C" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="474" y="190" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="#727780">memberOf</text>
+<path d="M1000 209 L876 209" fill="none" stroke="#74859C" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="938" y="190" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="#727780">memberOf</text>
+<path d="M244 262 L244 330" fill="none" stroke="#74859C" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="256" y="303" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="#727780">owns</text>
+<rect x="76" y="332" width="336" height="116" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="98" y="365" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">个人聊天 A</text>
+<text x="98" y="396" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">仅 A 可见 · 消息有顺序与时间</text>
+<path d="M244 448 L244 514" fill="none" stroke="#74859C" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="256" y="489" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="#727780">contains</text>
+<rect x="76" y="516" width="336" height="116" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="98" y="549" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">Evidence · 陈舟的本人说明</text>
+<text x="98" y="580" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">speaker / subject / source revision</text>
+<path d="M244 698 L244 634" fill="none" stroke="#74859C" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="256" y="676" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="#727780">derivedFrom</text>
+<rect x="76" y="700" width="336" height="116" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="98" y="733" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">MemoryAssertion</text>
+<text x="98" y="764" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">个人偏好 · 更喜欢简洁回复</text>
+<text x="98" y="789" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">状态 / 有效期 / 反例 / 可撤销</text>
+<path d="M706 262 L706 330" fill="none" stroke="#74859C" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="718" y="303" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="#727780">owns</text>
+<rect x="538" y="332" width="336" height="116" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="560" y="365" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">共享聊天 H</text>
+<text x="560" y="396" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">家庭共享 · 消息有顺序与时间</text>
+<path d="M706 448 L706 514" fill="none" stroke="#74859C" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="718" y="489" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="#727780">contains</text>
+<rect x="538" y="516" width="336" height="116" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="560" y="549" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">Evidence · 家庭会话中确认的约定</text>
+<text x="560" y="580" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">speaker / subject / source revision</text>
+<path d="M706 698 L706 634" fill="none" stroke="#74859C" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="718" y="676" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="#727780">derivedFrom</text>
+<rect x="538" y="700" width="336" height="116" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="560" y="733" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">MemoryAssertion</text>
+<text x="560" y="764" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">家庭约定 · 周末一起整理相册</text>
+<text x="560" y="789" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">状态 / 有效期 / 反例 / 可撤销</text>
+<path d="M1168 262 L1168 330" fill="none" stroke="#74859C" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="1180" y="303" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="#727780">owns</text>
+<rect x="1000" y="332" width="336" height="116" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="1022" y="365" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">个人聊天 B</text>
+<text x="1022" y="396" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">仅 B 可见 · 消息有顺序与时间</text>
+<path d="M1168 448 L1168 514" fill="none" stroke="#74859C" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="1180" y="489" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="#727780">contains</text>
+<rect x="1000" y="516" width="336" height="116" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="1022" y="549" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">Evidence · 林岚的本人说明</text>
+<text x="1022" y="580" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">speaker / subject / source revision</text>
+<path d="M1168 698 L1168 634" fill="none" stroke="#74859C" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="1180" y="676" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="#727780">derivedFrom</text>
+<rect x="1000" y="700" width="336" height="116" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="1022" y="733" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">MemoryAssertion</text>
+<text x="1022" y="764" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">个人偏好 · 喜欢详细步骤</text>
+<text x="1022" y="789" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">状态 / 有效期 / 反例 / 可撤销</text>
+<text x="76" y="873" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="17" font-weight="500" text-anchor="start" fill="#202124">查询“家庭有什么约定”只沿家庭共享范围检索；memberOf 边不会让私人来源变为共享。</text>
+</svg>

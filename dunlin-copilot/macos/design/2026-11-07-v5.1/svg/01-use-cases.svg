@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1440" height="1000" viewBox="0 0 1440 1000" role="img" aria-labelledby="title desc"><title id="title">软件用例 / 从个人工作台到家庭共享 Agent</title><desc id="desc">实线为基础产品范围；扩展、家庭识别、通话分阶段交付。所有能力本轮均未实现。。Dunlin C macOS 待确认设计稿，全部示例数据为虚构。</desc><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="#74859C"/></marker><linearGradient id="glassL" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FFFFFF" stop-opacity=".90"/><stop offset=".5" stop-color="#E4ECF8" stop-opacity=".84"/><stop offset="1" stop-color="#E8E3F2" stop-opacity=".91"/></linearGradient><linearGradient id="glassD" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#3C4351" stop-opacity=".94"/><stop offset=".5" stop-color="#252C37" stop-opacity=".96"/><stop offset="1" stop-color="#302D3C" stop-opacity=".94"/></linearGradient><linearGradient id="toolbarL" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FFFFFF" stop-opacity=".96"/><stop offset="1" stop-color="#E4EAF2" stop-opacity=".89"/></linearGradient><linearGradient id="toolbarD" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#4A5360" stop-opacity=".97"/><stop offset="1" stop-color="#2C323C" stop-opacity=".96"/></linearGradient></defs>
+<rect x="0" y="0" width="1440" height="1000" rx="0" fill="#EAEDF1"/>
+<text x="40" y="39" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="15" font-weight="600" text-anchor="start" fill="#5E665F">DUNLIN C / macOS</text>
+<text x="40" y="73" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="25" font-weight="600" text-anchor="start" fill="#222923">软件用例 / 从个人工作台到家庭共享 Agent</text>
+<text x="1400" y="42" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#747B74">DESIGN REVIEW  ·  2026.11.07  ·  V5.1</text>
+<text x="40" y="966" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#666E67">实线为基础产品范围；扩展、家庭识别、通话分阶段交付。所有能力本轮均未实现。</text>
+<text x="1400" y="966" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#666E67">01-use-cases</text>
+<rect x="40" y="98" width="1360" height="830" rx="14" fill="#FAFBFD"/>
+<rect x="273" y="138" width="898" height="742" rx="14" fill="#FFFFFF" stroke="#DDE3EB" stroke-width="1"/>
+<circle cx="139" cy="304" r="12" fill="none" stroke="#75869B" stroke-width="1.6"/>
+<path d="M139 316 L139 355" fill="none" stroke="#75869B" stroke-width="1.5"/>
+<path d="M117 331 L161 331" fill="none" stroke="#75869B" stroke-width="1.5"/>
+<path d="M139 355 L119 380" fill="none" stroke="#75869B" stroke-width="1.5"/>
+<path d="M139 355 L159 380" fill="none" stroke="#75869B" stroke-width="1.5"/>
+<text x="139" y="408" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="#202124">桌面使用者</text>
+<circle cx="139" cy="683" r="12" fill="none" stroke="#75869B" stroke-width="1.6"/>
+<path d="M139 695 L139 734" fill="none" stroke="#75869B" stroke-width="1.5"/>
+<path d="M117 710 L161 710" fill="none" stroke="#75869B" stroke-width="1.5"/>
+<path d="M139 734 L119 759" fill="none" stroke="#75869B" stroke-width="1.5"/>
+<path d="M139 734 L159 759" fill="none" stroke="#75869B" stroke-width="1.5"/>
+<text x="139" y="787" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="#202124">家庭成员 / 设备</text>
+<circle cx="1288" cy="298" r="12" fill="none" stroke="#75869B" stroke-width="1.6"/>
+<path d="M1288 310 L1288 349" fill="none" stroke="#75869B" stroke-width="1.5"/>
+<path d="M1266 325 L1310 325" fill="none" stroke="#75869B" stroke-width="1.5"/>
+<path d="M1288 349 L1268 374" fill="none" stroke="#75869B" stroke-width="1.5"/>
+<path d="M1288 349 L1308 374" fill="none" stroke="#75869B" stroke-width="1.5"/>
+<text x="1288" y="402" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="#202124">AI / 工具服务</text>
+<circle cx="1288" cy="679" r="12" fill="none" stroke="#75869B" stroke-width="1.6"/>
+<path d="M1288 691 L1288 730" fill="none" stroke="#75869B" stroke-width="1.5"/>
+<path d="M1266 706 L1310 706" fill="none" stroke="#75869B" stroke-width="1.5"/>
+<path d="M1288 730 L1268 755" fill="none" stroke="#75869B" stroke-width="1.5"/>
+<path d="M1288 730 L1308 755" fill="none" stroke="#75869B" stroke-width="1.5"/>
+<text x="1288" y="783" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="#202124">商店 / 扩展作者</text>
+<ellipse cx="510" cy="259" rx="183" ry="44" fill="#F8FAFC" stroke="#CCD6E2"/>
+<text x="510" y="256" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="16" font-weight="400" text-anchor="middle" fill="#202124">聊天与项目操作</text>
+<text x="510" y="278" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="#727780">模型切换 / 修改文件 / 执行命令</text>
+<path d="M164 351 L327 259" fill="none" stroke="#C3CDDA" stroke-width="1.5"/>
+<ellipse cx="950" cy="259" rx="183" ry="44" fill="#F8FAFC" stroke="#CCD6E2"/>
+<text x="950" y="256" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="16" font-weight="400" text-anchor="middle" fill="#202124">管理身份与授权</text>
+<text x="950" y="278" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="#727780">个人空间 / 家庭共享 / 到期与撤销</text>
+<path d="M164 351 L767 259" fill="none" stroke="#C3CDDA" stroke-width="1.5"/>
+<ellipse cx="510" cy="499" rx="183" ry="44" fill="#F0F5FD" stroke="#CCD6E2" stroke-dasharray="6 5"/>
+<text x="510" y="496" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="16" font-weight="400" text-anchor="middle" fill="#202124">知识与记忆</text>
+<text x="510" y="518" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="#727780">文档 RAG / 有来源的个人印象</text>
+<path d="M164 730 L327 499" fill="none" stroke="#C3CDDA" stroke-width="1.5" stroke-dasharray="6 5"/>
+<ellipse cx="950" cy="499" rx="183" ry="44" fill="#F0F5FD" stroke="#CCD6E2" stroke-dasharray="6 5"/>
+<text x="950" y="496" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="16" font-weight="400" text-anchor="middle" fill="#202124">配置 Skills 与插件</text>
+<text x="950" y="518" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="#727780">全局 / 项目 / 对话 / 版本回退</text>
+<path d="M164 730 L767 499" fill="none" stroke="#C3CDDA" stroke-width="1.5" stroke-dasharray="6 5"/>
+<ellipse cx="510" cy="739" rx="183" ry="44" fill="#F0F5FD" stroke="#CCD6E2" stroke-dasharray="6 5"/>
+<text x="510" y="736" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="16" font-weight="400" text-anchor="middle" fill="#202124">协作与子 Agent</text>
+<text x="510" y="758" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="#727780">任务委派 / 消息 / 文件冲突</text>
+<path d="M164 730 L327 739" fill="none" stroke="#C3CDDA" stroke-width="1.5" stroke-dasharray="6 5"/>
+<ellipse cx="950" cy="739" rx="183" ry="44" fill="#F0F5FD" stroke="#CCD6E2" stroke-dasharray="6 5"/>
+<text x="950" y="736" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="16" font-weight="400" text-anchor="middle" fill="#202124">通话与回看</text>
+<text x="950" y="758" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="#727780">独立语音 / 视频 / 转录 / 关键帧</text>
+<path d="M164 730 L767 739" fill="none" stroke="#C3CDDA" stroke-width="1.5" stroke-dasharray="6 5"/>
+<path d="M1133 259 L1262 346" fill="none" stroke="#C3CDDA" stroke-width="1.5"/>
+<path d="M1133 499 L1262 725" fill="none" stroke="#C3CDDA" stroke-width="1.5"/>
+</svg>

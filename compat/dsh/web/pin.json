@@ -1,0 +1,71 @@
+{
+  "commit": "1f81c047fc48fa190a683e469daa699857e9afe8",
+  "source": "https://github.com/deepseek-ai/deepseek-harness",
+  "changes": "Upstream TypeScript and package metadata copied unchanged. Separate host integration and build aliases live outside vendor.",
+  "files": [
+    {
+      "path": "vendor/ui-renderer/LICENSE",
+      "sha256": "ebb4f09972aee8608be255debaf78451a68e95c290f55c240dec2ecfa16ea6be"
+    },
+    {
+      "path": "vendor/ui-renderer/package.json",
+      "sha256": "b0c9593d8d16f5915cd6695f47360d6ddaa76ab4c969859cea3bb6819e1051b5"
+    },
+    {
+      "path": "vendor/ui-renderer/src/client/app.tsx",
+      "sha256": "cd3328d22018734edfa72ade57f7806edfb5254c0b9a08b323373624a2e48d64"
+    },
+    {
+      "path": "vendor/ui-renderer/src/client/bind.ts",
+      "sha256": "91e70ae7ae0eca972de8c809b3e6ea77cc8d228bae6886ee782ae496cc1d4f45"
+    },
+    {
+      "path": "vendor/ui-renderer/src/client/bindings.tsx",
+      "sha256": "ceaf302fcb4eb4ec419fc92c5b39f3667d753e67584dffbaf4540a67fc4f6672"
+    },
+    {
+      "path": "vendor/ui-renderer/src/client/errors.ts",
+      "sha256": "594e7de016772aa6ffa3b00a83387b891d660cfb6cbbe719e82ec28871b8edac"
+    },
+    {
+      "path": "vendor/ui-renderer/src/client/index.ts",
+      "sha256": "bc0e0e4beaefa5d1b20cd94b64d65a38e9500b6d0a830de300b1c24e5394bb3c"
+    },
+    {
+      "path": "vendor/ui-renderer/src/client/registry.ts",
+      "sha256": "6b8b6b969d8bcf0314ea20438a223f3a90e1bd516571faecae5c3c01008ecf21"
+    },
+    {
+      "path": "vendor/ui-renderer/src/client/scoped-slots.tsx",
+      "sha256": "ff53b648f9a6fbd59bc13b89fbe33c67b32421c99ab7923689bfa1b47cea95c1"
+    },
+    {
+      "path": "vendor/ui-renderer/src/client/use-sync-external-store.d.ts",
+      "sha256": "88a8490fa853c36930c81fa53a5e3219c33a904b541fbbecc73956299c8a7105"
+    },
+    {
+      "path": "vendor/ui-renderer/src/index.ts",
+      "sha256": "650c95e1bff0cfdd2c00e4eaa29e5cb1d9103845500c3d244c04603a3b6bd2f6"
+    },
+    {
+      "path": "vendor/ui-slots/LICENSE",
+      "sha256": "ebb4f09972aee8608be255debaf78451a68e95c290f55c240dec2ecfa16ea6be"
+    },
+    {
+      "path": "vendor/ui-slots/package.json",
+      "sha256": "2775c52af54359733f249d4ce7275236f676986278abefaf60bee8fbdd2ce363"
+    },
+    {
+      "path": "vendor/ui-slots/src/index.ts",
+      "sha256": "43989fb355e1e85316caa70b28de3294f9d6e7b179199a4e429dcd1ef73f2e24"
+    },
+    {
+      "path": "vendor/ui-slots/src/renderer.ts",
+      "sha256": "43ba3492fff724ffbe71d0b4bcfca410ab695d019aa2e163d2c8dd56cab1a849"
+    },
+    {
+      "path": "vendor/ui-slots/src/store.ts",
+      "sha256": "4233ae32911848aa771910286e5f41b4c683e8c5b16da190935082ac4249cca0"
+    }
+  ]
+}

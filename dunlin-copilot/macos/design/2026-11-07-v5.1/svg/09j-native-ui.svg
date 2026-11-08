@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1440" height="1000" viewBox="0 0 1440 1000" role="img" aria-labelledby="title desc"><title id="title">原生设计与可访问性 / 导航、内容和动作各有层级</title><desc id="desc">依据 Apple HIG 与 macOS 26/27 设计更新。SVG 仅模拟材质；实际折射、动画和无障碍行为交给系统。。Dunlin C macOS 待确认设计稿，全部示例数据为虚构。</desc><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="#74859C"/></marker><linearGradient id="glassL" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FFFFFF" stop-opacity=".90"/><stop offset=".5" stop-color="#E4ECF8" stop-opacity=".84"/><stop offset="1" stop-color="#E8E3F2" stop-opacity=".91"/></linearGradient><linearGradient id="glassD" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#3C4351" stop-opacity=".94"/><stop offset=".5" stop-color="#252C37" stop-opacity=".96"/><stop offset="1" stop-color="#302D3C" stop-opacity=".94"/></linearGradient><linearGradient id="toolbarL" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FFFFFF" stop-opacity=".96"/><stop offset="1" stop-color="#E4EAF2" stop-opacity=".89"/></linearGradient><linearGradient id="toolbarD" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#4A5360" stop-opacity=".97"/><stop offset="1" stop-color="#2C323C" stop-opacity=".96"/></linearGradient></defs>
+<rect x="0" y="0" width="1440" height="1000" rx="0" fill="#EAEDF1"/>
+<text x="40" y="39" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="15" font-weight="600" text-anchor="start" fill="#5E665F">DUNLIN C / macOS</text>
+<text x="40" y="73" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="25" font-weight="600" text-anchor="start" fill="#222923">原生设计与可访问性 / 导航、内容和动作各有层级</text>
+<text x="1400" y="42" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#747B74">DESIGN REVIEW  ·  2026.11.07  ·  V5.1</text>
+<text x="40" y="966" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#666E67">依据 Apple HIG 与 macOS 26/27 设计更新。SVG 仅模拟材质；实际折射、动画和无障碍行为交给系统。</text>
+<text x="1400" y="966" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#666E67">09j-native-ui</text>
+<rect x="40" y="98" width="1360" height="830" rx="14" fill="#FAFBFD"/>
+<rect x="76" y="144" width="604" height="174" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="98" y="177" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">导航与控制层</text>
+<text x="98" y="208" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">贴边侧栏 / 选中半粗 / 分组 toolbar</text>
+<text x="98" y="233" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">Liquid Glass regular，减少零散描边按钮</text>
+<text x="98" y="258" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">可溢出工具项；键盘和菜单栏提供同一操作</text>
+<rect x="710" y="144" width="626" height="174" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="732" y="177" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">内容与设置层</text>
+<text x="732" y="208" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">聊天、代码、Diff 使用稳定底色</text>
+<text x="732" y="233" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">独立设置窗口：Form / Section / Table</text>
+<text x="732" y="258" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">主操作集中，危险动作不设 Return 默认</text>
+<rect x="76" y="378" width="152" height="85" rx="14" fill="#FFFFFF" stroke="#D6DCE5" stroke-width="1"/>
+<text x="152" y="429" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="16" font-weight="500" text-anchor="middle" fill="#2B3544">普通</text>
+<rect x="250" y="378" width="152" height="85" rx="14" fill="#F1F5FB" stroke="#D6DCE5" stroke-width="1"/>
+<text x="326" y="429" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="16" font-weight="500" text-anchor="middle" fill="#2B3544">悬停</text>
+<rect x="424" y="378" width="152" height="85" rx="14" fill="#DCE8F8" stroke="#C8D5E6" stroke-width="1"/>
+<text x="500" y="429" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="16" font-weight="500" text-anchor="middle" fill="#2B3544">按下</text>
+<rect x="598" y="378" width="152" height="85" rx="14" fill="#FFFFFF" stroke="#007AFF" stroke-width="3"/>
+<text x="674" y="429" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="16" font-weight="500" text-anchor="middle" fill="#2B3544">键盘焦点</text>
+<rect x="772" y="378" width="152" height="85" rx="14" fill="#ECEEF1" stroke="#ECEEF1" stroke-width="1"/>
+<text x="848" y="429" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="16" font-weight="500" text-anchor="middle" fill="#A0A6AE">禁用</text>
+<rect x="946" y="378" width="390" height="85" rx="14" fill="#FFFFFF" stroke="#8A96A6" stroke-width="2"/>
+<text x="1141" y="429" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="16" font-weight="500" text-anchor="middle" fill="#2B3544">降低透明度 · 不透明底色</text>
+<rect x="76" y="526" width="604" height="193" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="98" y="559" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">布局行为</text>
+<text x="98" y="590" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">普通 / 悬停 / 按下 / 焦点 / 禁用分开</text>
+<text x="98" y="615" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">名称、错误和状态不只靠颜色表达</text>
+<text x="98" y="640" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">窄窗口：收起检查器，次要操作进菜单</text>
+<text x="98" y="665" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">中文输入法、VoiceOver 与键盘顺序需实测</text>
+<rect x="710" y="526" width="626" height="193" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="732" y="559" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">系统与可用性</text>
+<text x="732" y="590" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">macOS 26 基线，27 使用已公开的原生改进</text>
+<text x="732" y="615" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">系统降低透明度 / 提高对比度自动生效</text>
+<text x="732" y="640" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">降低动态效果时不依赖玻璃动画传达状态</text>
+<text x="732" y="665" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">系统组件与 availability 在实际 SDK 验证</text>
+<text x="76" y="825" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="500" text-anchor="start" fill="#202124">科技白 / 科技黑只是外观名称；不另造一套系统透明度或可访问性设置。</text>
+</svg>

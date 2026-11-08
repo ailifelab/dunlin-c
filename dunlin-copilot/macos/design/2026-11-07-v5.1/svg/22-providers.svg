@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1440" height="1000" viewBox="0 0 1440 1000" role="img" aria-labelledby="title desc"><title id="title">13 / 设置 · 服务商</title><desc id="desc">按 DSH 的服务商路由组织模型；连接测试与保存、应用是不同状态。。Dunlin C macOS 待确认设计稿，全部示例数据为虚构。</desc><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="#74859C"/></marker><linearGradient id="glassL" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FFFFFF" stop-opacity=".90"/><stop offset=".5" stop-color="#E4ECF8" stop-opacity=".84"/><stop offset="1" stop-color="#E8E3F2" stop-opacity=".91"/></linearGradient><linearGradient id="glassD" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#3C4351" stop-opacity=".94"/><stop offset=".5" stop-color="#252C37" stop-opacity=".96"/><stop offset="1" stop-color="#302D3C" stop-opacity=".94"/></linearGradient><linearGradient id="toolbarL" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FFFFFF" stop-opacity=".96"/><stop offset="1" stop-color="#E4EAF2" stop-opacity=".89"/></linearGradient><linearGradient id="toolbarD" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#4A5360" stop-opacity=".97"/><stop offset="1" stop-color="#2C323C" stop-opacity=".96"/></linearGradient></defs>
+<rect x="0" y="0" width="1440" height="1000" rx="0" fill="#EAEDF1"/>
+<text x="40" y="39" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="15" font-weight="600" text-anchor="start" fill="#5E665F">DUNLIN C / macOS</text>
+<text x="40" y="73" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="25" font-weight="600" text-anchor="start" fill="#222923">13 / 设置 · 服务商</text>
+<text x="1400" y="42" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#747B74">DESIGN REVIEW  ·  2026.11.07  ·  V5.1</text>
+<text x="40" y="966" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#666E67">按 DSH 的服务商路由组织模型；连接测试与保存、应用是不同状态。</text>
+<text x="1400" y="966" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#666E67">22-providers</text>
+<rect x="40" y="98" width="1360" height="830" rx="22" fill="#F7F8FA" stroke="#E3E6EB" stroke-width="1"/>
+<path d="M62 98 H300 V928 H62 A22 22 0 0 1 40 906 V120 A22 22 0 0 1 62 98 Z" fill="url(#glassL)"/>
+<circle cx="65" cy="122" r="6" fill="#ED6A5E"/>
+<circle cx="85" cy="122" r="6" fill="#D8DADF"/>
+<circle cx="105" cy="122" r="6" fill="#D8DADF"/>
+<text x="70" y="178" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="22" font-weight="600" text-anchor="start" fill="#202124">设置</text>
+<a href="21-settings-general.svg" xlink:href="21-settings-general.svg">
+<text x="78" y="226" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#202124">通用</text>
+</a>
+<a href="50-identities.svg" xlink:href="50-identities.svg">
+<text x="78" y="266" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#202124">身份与家庭</text>
+</a>
+<rect x="55" y="284" width="231" height="33" rx="8" fill="#CEDFF4"/>
+<a href="22-providers.svg" xlink:href="22-providers.svg">
+<text x="78" y="306" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="600" text-anchor="start" fill="#202124">服务商</text>
+</a>
+<a href="24-models.svg" xlink:href="24-models.svg">
+<text x="78" y="346" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#202124">模型</text>
+</a>
+<a href="77-compaction-settings.svg" xlink:href="77-compaction-settings.svg">
+<text x="78" y="386" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#202124">上下文压缩</text>
+</a>
+<a href="25-config-import.svg" xlink:href="25-config-import.svg">
+<text x="78" y="426" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#202124">导入配置</text>
+</a>
+<a href="51-global-skills.svg" xlink:href="51-global-skills.svg">
+<text x="78" y="466" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#202124">Skills</text>
+</a>
+<a href="27-extensions.svg" xlink:href="27-extensions.svg">
+<text x="78" y="506" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#202124">插件</text>
+</a>
+<a href="68-compat-off.svg" xlink:href="68-compat-off.svg">
+<text x="78" y="546" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#202124">DSH 兼容环境</text>
+</a>
+<a href="55-marketplace.svg" xlink:href="55-marketplace.svg">
+<text x="78" y="586" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#202124">商店与来源</text>
+</a>
+<a href="45-themes.svg" xlink:href="45-themes.svg">
+<text x="78" y="626" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#202124">外观</text>
+</a>
+<a href="58-permissions.svg" xlink:href="58-permissions.svg">
+<text x="78" y="666" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#202124">授权记录</text>
+</a>
+<a href="26-privacy.svg" xlink:href="26-privacy.svg">
+<text x="78" y="706" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#202124">权限与数据</text>
+</a>
+<a href="46-media-settings.svg" xlink:href="46-media-settings.svg">
+<text x="78" y="746" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#202124">语音与视频</text>
+</a>
+<a href="49-memory-controls.svg" xlink:href="49-memory-controls.svg">
+<text x="78" y="786" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#202124">记忆与知识库</text>
+</a>
+<a href="86-history-index.svg" xlink:href="86-history-index.svg">
+<text x="78" y="826" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#202124">聊天检索</text>
+</a>
+<text x="73" y="885" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="#727780">Dunlin C</text>
+<text x="261" y="885" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#727780">⌘ ,</text>
+<text x="355" y="169" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="24" font-weight="600" text-anchor="start" fill="#202124">服务商</text>
+<text x="355" y="202" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#727780">一个服务商保存地址、协议和凭据；多个模型共用连接。</text>
+<path d="M355 229 L1343 229" fill="none" stroke="#E3E6EB" stroke-width="1.5"/>
+<a href="23-provider-edit.svg" xlink:href="23-provider-edit.svg">
+<rect x="1190" y="159" width="153" height="34" rx="9" fill="#0069D6"/>
+<text x="1266.5" y="181" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="500" text-anchor="middle" fill="#FFFFFF">＋ 添加服务商</text>
+</a>
+<rect x="355" y="267" width="988" height="136" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="377" y="300" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">本地模型</text>
+<rect x="508" y="282" width="91" height="26" rx="13" fill="#EAF2FF"/>
+<text x="553.5" y="300" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="500" text-anchor="middle" fill="#326AA8">已测试</text>
+<text x="377" y="334" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">路由  local     协议  Chat Completions</text>
+<text x="377" y="368" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#727780">127.0.0.1:8000/v1</text>
+<a href="23-provider-edit.svg" xlink:href="23-provider-edit.svg">
+<rect x="1197" y="316" width="121" height="34" rx="9" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="1257.5" y="338" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="500" text-anchor="middle" fill="#202124">编辑…</text>
+</a>
+<rect x="355" y="428" width="988" height="136" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="377" y="461" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">DeepSeek</text>
+<rect x="508" y="443" width="91" height="26" rx="13" fill="#EAF2FF"/>
+<text x="553.5" y="461" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="500" text-anchor="middle" fill="#326AA8">已测试</text>
+<text x="377" y="495" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">路由  deepseek-custom     协议  Chat Completions</text>
+<text x="377" y="529" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#727780">自定义服务地址 · 凭据已保存到钥匙串</text>
+<a href="33-api-key.svg" xlink:href="33-api-key.svg">
+<rect x="1197" y="477" width="121" height="34" rx="9" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="1257.5" y="499" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="500" text-anchor="middle" fill="#202124">编辑…</text>
+</a>
+<rect x="355" y="589" width="988" height="136" rx="12" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="377" y="622" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" text-anchor="start" fill="#202124">远程助手</text>
+<rect x="508" y="604" width="91" height="26" rx="13" fill="#F2EEE3"/>
+<text x="553.5" y="622" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="500" text-anchor="middle" fill="#8F7848">未测试</text>
+<text x="377" y="656" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">路由  remote     协议  Responses</text>
+<text x="377" y="690" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#727780">自定义服务地址 · 凭据已保存到钥匙串</text>
+<a href="33-api-key.svg" xlink:href="33-api-key.svg">
+<rect x="1197" y="638" width="121" height="34" rx="9" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="1257.5" y="660" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="500" text-anchor="middle" fill="#202124">编辑…</text>
+</a>
+<text x="355" y="818" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">导入 DSH 配置可先查看字段映射与兼容性报告。</text>
+<a href="25-config-import.svg" xlink:href="25-config-import.svg">
+<rect x="355" y="841" width="162" height="34" rx="9" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="436.0" y="863" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="500" text-anchor="middle" fill="#202124">导入配置…</text>
+</a>
+</svg>

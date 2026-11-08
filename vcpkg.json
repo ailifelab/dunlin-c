@@ -1,0 +1,9 @@
+{
+  "name": "dunlin-c",
+  "version-string": "0.2.12",
+  "dependencies": [
+    "json-c",
+    "curl"
+  ],
+  "builtin-baseline": "b8dfe957ec8b5c0ef5c4b31eea594b8486af744f"
+}

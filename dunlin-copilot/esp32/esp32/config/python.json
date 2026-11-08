@@ -1,0 +1,19 @@
+{
+  "profile": "verified-esp32s3-2101",
+  "micropython_version": "1.26.1",
+  "vm_heap_bytes": 524288,
+  "script_ms": 2000,
+  "job_ms": 30000,
+  "code_bytes": 2047,
+  "stdout_bytes": 1535,
+  "stdout_lines": 32,
+  "https_timeout_ms": 8000,
+  "default_allowed_hosts": [
+    "geocoding-api.open-meteo.com",
+    "api.open-meteo.com"
+  ],
+  "max_allowed_hosts": 8,
+  "ntp_server": "pool.ntp.org",
+  "ntp_wait_ms": 2000,
+  "network_policy": "trusted_https"
+}

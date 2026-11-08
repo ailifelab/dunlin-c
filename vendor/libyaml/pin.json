@@ -1,0 +1,37 @@
+{
+  "upstream": "https://github.com/yaml/libyaml",
+  "tag": "0.2.6-rc.1",
+  "commit": "9aa92d0e2d9a78e9b6e8f79e36bdfb2b784f7e57",
+  "archive_sha256": "84838629a7a2530e08a9a88e1144d1d08d8a1c0750d366c422866c36faf22da4",
+  "scope": "Unmodified parser-only subset, MIT; no emitter/dumper, event consumer rejects aliases/anchors/tags and limits nesting independently. This prerelease includes upstream nesting-depth fix.",
+  "files": [
+    {
+      "path": "License",
+      "sha256": "c40112449f254b9753045925248313e9270efa36d226b22d82d4cc6c43c57f29"
+    },
+    {
+      "path": "include/yaml.h",
+      "sha256": "5dfca217235c26810a0ab2f52c328fd3b95fd2ee244fab12f1b0f72d63da2780"
+    },
+    {
+      "path": "src/yaml_private.h",
+      "sha256": "8dffe95c784665eba4ee88169456ebd41137a6d80ad13d536df6ad10d7a4d459"
+    },
+    {
+      "path": "src/api.c",
+      "sha256": "71f9263a2c77237762c8fa5e7c3d2bdd35723ecf1e2898222c7a603a5bf3f2db"
+    },
+    {
+      "path": "src/reader.c",
+      "sha256": "c428a44b177391557bdf49177c1dc0216edf2a2bbe0e24ca2ef2725ef7f01e9d"
+    },
+    {
+      "path": "src/scanner.c",
+      "sha256": "b0e2b1c200256dadea89301211f747a4922fd5aead4312eac6a2cbe77e0d0d65"
+    },
+    {
+      "path": "src/parser.c",
+      "sha256": "0758703534cfab272fcbe46c24499bb8e3de4ab3efc28691fb8267fd2e217dfa"
+    }
+  ]
+}

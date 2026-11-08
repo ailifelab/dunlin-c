@@ -1,0 +1,119 @@
+{
+  "format": 1,
+  "title": {
+    "zh": "Dunlin 常用 DSH 插件清单"
+  },
+  "description": {
+    "zh": "常用候选项目索引；不代表 Dunlin 兼容认证。"
+  },
+  "plugins": [
+    {
+      "name": "dshmarket",
+      "title": {
+        "zh": "DSH 插件市场"
+      },
+      "description": {
+        "zh": "在 DSH 内浏览社区插件的扩展。"
+      },
+      "repository": {
+        "url": "https://github.com/dsh-market/dsh-market"
+      },
+      "metadata": {
+        "dunlin": {
+          "compatibility": "unverified",
+          "installable": false
+        }
+      }
+    },
+    {
+      "name": "dsh-better-sidebar",
+      "title": {
+        "zh": "侧栏增强"
+      },
+      "description": {
+        "zh": "DSH 侧栏导航增强，原生界面适配仍待验证。"
+      },
+      "repository": {
+        "url": "https://github.com/omdsh-dev/DSH-better-sidebar"
+      },
+      "metadata": {
+        "dunlin": {
+          "compatibility": "unverified",
+          "installable": false
+        }
+      }
+    },
+    {
+      "name": "dsh-image-gen",
+      "title": {
+        "zh": "图像生成"
+      },
+      "description": {
+        "zh": "为 DSH 提供图像生成相关工具。"
+      },
+      "repository": {
+        "url": "https://github.com/shanliuling/dsh-image-gen"
+      },
+      "metadata": {
+        "dunlin": {
+          "compatibility": "unverified",
+          "installable": false
+        }
+      }
+    },
+    {
+      "name": "dsh-checkpoint-rewind",
+      "title": {
+        "zh": "检查点回退"
+      },
+      "description": {
+        "zh": "为 DSH 会话提供检查点与回退操作。"
+      },
+      "repository": {
+        "url": "https://github.com/PerryLink/dsh-checkpoint-rewind"
+      },
+      "metadata": {
+        "dunlin": {
+          "compatibility": "unverified",
+          "installable": false
+        }
+      }
+    },
+    {
+      "name": "Catppuccin-dsh-theme",
+      "title": {
+        "zh": "Catppuccin 主题"
+      },
+      "description": {
+        "zh": "DSH 配色主题，Dunlin 主题映射仍待验证。"
+      },
+      "repository": {
+        "url": "https://github.com/zhijun-dai/Catppuccin-dsh-theme"
+      },
+      "metadata": {
+        "dunlin": {
+          "compatibility": "unverified",
+          "installable": false
+        }
+      }
+    },
+    {
+      "name": "dsh-project-manager",
+      "title": {
+        "zh": "项目管理"
+      },
+      "description": {
+        "zh": "DSH 项目管理扩展。"
+      },
+      "repository": {
+        "url": "https://github.com/hoyyang/dsh-project-manager"
+      },
+      "metadata": {
+        "dunlin": {
+          "compatibility": "unverified",
+          "installable": false
+        }
+      }
+    }
+  ]
+}

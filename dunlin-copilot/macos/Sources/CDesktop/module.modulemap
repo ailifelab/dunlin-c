@@ -1,0 +1,8 @@
+module CDesktop [system] {
+ header "../../../../include/dunlin/desktop.h"
+ header "../../../../include/dunlin/identity.h"
+ header "../../../../include/dunlin/context_budget.h"
+ header "../../../../include/dunlin/knowledge.h"
+ header "../../../../include/dunlin/realtime.h"
+ export *
+}

@@ -1,0 +1,5 @@
+{
+  "name": "@deepseek-ai/cordis",
+  "type": "module",
+  "exports": "./src/index.ts"
+}

@@ -1,0 +1,10 @@
+{
+  "base_url": "http://127.0.0.1:8080/v1",
+  "model": "local-model",
+  "stream": true,
+  "timeout_ms": 30000,
+  "workspace": "work",
+  "session_dir": "sessions",
+  "plugins": ["loop", "model", "tools", "sessions", "permission", "clock"],
+  "enabled_tools": ["echo", "calc", "read_file", "write_file", "exec"]
+}

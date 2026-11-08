@@ -1,0 +1,7 @@
+if(NOT IDF_TARGET STREQUAL "esp32s3")
+  idf_component_register()
+  return()
+endif()
+file(GLOB MP_CORE "generated/py/*.c")
+idf_component_register(SRCS ${MP_CORE} "generated/shared/runtime/gchelper_generic.c" "generated/extmod/modjson.c" "mpport.c" "../../../python/mpbridge.c" INCLUDE_DIRS "." "generated" "generated/port")
+target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-unused-function -Wno-unused-variable -Wno-missing-field-initializers -Wno-error)

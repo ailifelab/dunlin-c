@@ -1,0 +1,33 @@
+// !$*UTF8*$!
+{
+ archiveVersion = 1;
+ classes = {};
+ objectVersion = 77;
+ objects = {
+  DC0000000000000000000001 = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = 1; LastUpgradeCheck = 2720; TargetAttributes = {DC0000000000000000000010 = {CreatedOnToolsVersion = 27.2; ProvisioningStyle = Automatic; }; }; }; buildConfigurationList = DC0000000000000000000020; compatibilityVersion = "Xcode 16.0"; developmentRegion = zh_CN; hasScannedForEncodings = 0; knownRegions = (zh_CN, en, Base); mainGroup = DC0000000000000000000002; preferredProjectObjectVersion = 77; productRefGroup = DC0000000000000000000003; projectDirPath = ""; projectRoot = ""; targets = (DC0000000000000000000010); };
+  DC0000000000000000000002 = {isa = PBXGroup; children = (DC0000000000000000000004, DC0000000000000000000005, DC0000000000000000000006, DC0000000000000000000003); sourceTree = "<group>"; };
+  DC0000000000000000000003 = {isa = PBXGroup; name = Products; children = (DC0000000000000000000007); sourceTree = "<group>"; };
+  DC0000000000000000000004 = {isa = PBXFileSystemSynchronizedRootGroup; path = Sources/DunlinApp; sourceTree = "<group>"; };
+  DC0000000000000000000005 = {isa = PBXGroup; path = Configuration; children = (DC0000000000000000000030, DC0000000000000000000031, DC0000000000000000000032, DC0000000000000000000033, DC0000000000000000000034); sourceTree = "<group>"; };
+  DC0000000000000000000006 = {isa = PBXFileReference; lastKnownFileType = folder; path = Sources/CDesktop; sourceTree = "<group>"; };
+  DC0000000000000000000007 = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Dunlin Copilot.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+  DC0000000000000000000010 = {isa = PBXNativeTarget; buildConfigurationList = DC0000000000000000000021; buildPhases = (DC0000000000000000000011, DC0000000000000000000012, DC0000000000000000000013, DC0000000000000000000014, DC0000000000000000000015); buildRules = (); dependencies = (); fileSystemSynchronizedGroups = (DC0000000000000000000004); name = DunlinCopilot; productName = "Dunlin Copilot"; productReference = DC0000000000000000000007; productType = "com.apple.product-type.application"; };
+  DC0000000000000000000011 = {isa = PBXShellScriptBuildPhase; alwaysOutOfDate = 1; buildActionMask = 2147483647; files = (); inputPaths = (); name = "Build independent C services"; outputPaths = (); runOnlyForDeploymentPostprocessing = 0; shellPath = /bin/sh; shellScript = "cd \"$SRCROOT/../..\"\n/bin/sh scripts/build-macos-xcode.sh core\n"; };
+  DC0000000000000000000012 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+  DC0000000000000000000013 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+  DC0000000000000000000014 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+  DC0000000000000000000015 = {isa = PBXShellScriptBuildPhase; alwaysOutOfDate = 1; buildActionMask = 2147483647; files = (); inputPaths = (); name = "Package optional hosts and notices"; outputPaths = (); runOnlyForDeploymentPostprocessing = 0; shellPath = /bin/sh; shellScript = "cd \"$SRCROOT/../..\"\n/bin/sh scripts/build-macos-xcode.sh resources\n"; };
+  DC0000000000000000000020 = {isa = XCConfigurationList; buildConfigurations = (DC0000000000000000000022, DC0000000000000000000023); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+  DC0000000000000000000021 = {isa = XCConfigurationList; buildConfigurations = (DC0000000000000000000024, DC0000000000000000000025); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+  DC0000000000000000000022 = {isa = XCBuildConfiguration; buildSettings = {}; name = Debug; };
+  DC0000000000000000000023 = {isa = XCBuildConfiguration; buildSettings = {}; name = Release; };
+  DC0000000000000000000024 = {isa = XCBuildConfiguration; baseConfigurationReference = DC0000000000000000000031; buildSettings = {}; name = Debug; };
+  DC0000000000000000000025 = {isa = XCBuildConfiguration; baseConfigurationReference = DC0000000000000000000032; buildSettings = {}; name = Release; };
+  DC0000000000000000000030 = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
+  DC0000000000000000000031 = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
+  DC0000000000000000000032 = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
+  DC0000000000000000000033 = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+  DC0000000000000000000034 = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DunlinCopilot.entitlements; sourceTree = "<group>"; };
+ };
+ rootObject = DC0000000000000000000001;
+}

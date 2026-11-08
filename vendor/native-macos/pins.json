@@ -1,0 +1,23 @@
+{
+  "deployment": "26.0",
+  "dependencies": [
+    {
+      "name": "json-c",
+      "version": "0.19",
+      "tag": "json-c-0.19-20260627",
+      "release": "https://github.com/json-c/json-c/releases/tag/json-c-0.19-20260627",
+      "url": "https://github.com/json-c/json-c/releases/download/json-c-0.19-20260627/json-c-0.19.tar.gz",
+      "sha256": "37ad0249902e301bd9052bf712e511fcc6acff4ecaad4b5900aad9ce564e26de",
+      "license": "MIT"
+    },
+    {
+      "name": "openssl",
+      "version": "3.5.9",
+      "tag": "openssl-3.5.9",
+      "release": "https://github.com/openssl/openssl/releases/tag/openssl-3.5.9",
+      "url": "https://github.com/openssl/openssl/releases/download/openssl-3.5.9/openssl-3.5.9.tar.gz",
+      "sha256": "603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a",
+      "license": "Apache-2.0"
+    }
+  ]
+}

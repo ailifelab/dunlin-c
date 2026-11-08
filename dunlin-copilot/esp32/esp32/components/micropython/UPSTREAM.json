@@ -1,0 +1,8 @@
+{
+  "project": "MicroPython",
+  "version": "v1.26.1",
+  "archive_url": "https://codeload.github.com/micropython/micropython/tar.gz/refs/tags/v1.26.1",
+  "archive_sha256": "10600e844f02a8b448cf176df71031d2eb3d731097a809a963ce9c35cef3d613",
+  "license": "MIT; LICENSE-MicroPython",
+  "generated_by": "scripts/prepare-micropython.sh, official ports/embed; no edits to upstream generated C/H; custom port configuration, mpport.c and native bridge separate"
+}

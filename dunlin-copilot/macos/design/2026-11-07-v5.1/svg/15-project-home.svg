@@ -1,0 +1,135 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1440" height="1000" viewBox="0 0 1440 1000" role="img" aria-labelledby="title desc"><title id="title">06 / 项目主页</title><desc id="desc">项目内管理聊天与明确加入的上下文；指令、默认模型和目录在项目设置中维护。。Dunlin C macOS 待确认设计稿，全部示例数据为虚构。</desc><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="#74859C"/></marker><linearGradient id="glassL" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FFFFFF" stop-opacity=".90"/><stop offset=".5" stop-color="#E4ECF8" stop-opacity=".84"/><stop offset="1" stop-color="#E8E3F2" stop-opacity=".91"/></linearGradient><linearGradient id="glassD" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#3C4351" stop-opacity=".94"/><stop offset=".5" stop-color="#252C37" stop-opacity=".96"/><stop offset="1" stop-color="#302D3C" stop-opacity=".94"/></linearGradient><linearGradient id="toolbarL" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FFFFFF" stop-opacity=".96"/><stop offset="1" stop-color="#E4EAF2" stop-opacity=".89"/></linearGradient><linearGradient id="toolbarD" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#4A5360" stop-opacity=".97"/><stop offset="1" stop-color="#2C323C" stop-opacity=".96"/></linearGradient></defs>
+<rect x="0" y="0" width="1440" height="1000" rx="0" fill="#EAEDF1"/>
+<text x="40" y="39" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="15" font-weight="600" text-anchor="start" fill="#5E665F">DUNLIN C / macOS</text>
+<text x="40" y="73" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="25" font-weight="600" text-anchor="start" fill="#222923">06 / 项目主页</text>
+<text x="1400" y="42" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#747B74">DESIGN REVIEW  ·  2026.11.07  ·  V5.1</text>
+<text x="40" y="966" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#666E67">项目内管理聊天与明确加入的上下文；指令、默认模型和目录在项目设置中维护。</text>
+<text x="1400" y="966" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#666E67">15-project-home</text>
+<rect x="40" y="98" width="1360" height="830" rx="22" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<path d="M62 98 H286 V928 H62 A22 22 0 0 1 40 906 V120 A22 22 0 0 1 62 98 Z" fill="url(#glassL)"/>
+<circle cx="65" cy="122" r="6" fill="#ED6A5E"/>
+<circle cx="85" cy="122" r="6" fill="#F4BF50"/>
+<circle cx="105" cy="122" r="6" fill="#61C454"/>
+<rect x="230" y="108" width="41" height="29" rx="12" fill="url(#toolbarL)" stroke="#FFFFFF" stroke-width="1"/>
+<path d="M2 2h16v16H2zM8 2v16" transform="translate(240 113)" fill="none" stroke="#727780" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="67" y="179" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="20" font-weight="600" text-anchor="start" fill="#202124">Dunlin C</text>
+<a href="11-new-chat.svg" xlink:href="11-new-chat.svg">
+<path d="M10 2v16M2 10h16" transform="translate(67 211)" fill="none" stroke="#727780" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="99" y="227" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#202124">新聊天</text>
+</a>
+<a href="19-search.svg" xlink:href="19-search.svg">
+<path d="M14 14l6 6M16 9a7 7 0 1 1-14 0a7 7 0 1 1 14 0" transform="translate(67 252)" fill="none" stroke="#727780" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="99" y="268" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#202124">搜索</text>
+</a>
+<rect x="54" y="286" width="218" height="34" rx="8" fill="#CEDFF4"/>
+<a href="14-projects.svg" xlink:href="14-projects.svg">
+<path d="M1 5h7l3 3h9v11H1z" transform="translate(67 293)" fill="none" stroke="#727780" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="99" y="309" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="600" text-anchor="start" fill="#202124">项目</text>
+</a>
+<text x="67" y="370" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="600" text-anchor="start" fill="#727780">置顶</text>
+<path d="M2 2h16v12H7l-5 4z" transform="translate(69 391)" fill="none" stroke="#727780" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="100" y="407" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#202124">Dunlin C 的产品方向</text>
+<text x="67" y="458" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="600" text-anchor="start" fill="#727780">项目</text>
+<path d="M10 2v16M2 10h16" transform="translate(246 444)" fill="none" stroke="#727780" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="66" y="493" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="#727780">⌄</text>
+<a href="17-project-settings.svg" xlink:href="17-project-settings.svg">
+<path d="M1 5h7l3 3h9v11H1z" transform="translate(84 478)" fill="none" stroke="#727780" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+</a>
+<a href="15-project-home.svg" xlink:href="15-project-home.svg">
+<text x="113" y="493" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="500" text-anchor="start" fill="#202124">Dunlin C</text>
+</a>
+<rect x="76" y="503" width="194" height="31" rx="8" fill="#CEDFF4"/>
+<a href="18-project-chat.svg" xlink:href="18-project-chat.svg">
+<text x="92" y="524" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="600" text-anchor="start" fill="#202124">完善配置页面</text>
+</a>
+<a href="31-organize.svg" xlink:href="31-organize.svg">
+<text x="254" y="524" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="15" font-weight="400" text-anchor="end" fill="#727780">⋯</text>
+</a>
+<a href="18-project-chat.svg" xlink:href="18-project-chat.svg">
+<text x="92" y="559" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="#202124">梳理运行时职责</text>
+</a>
+<a href="31-organize.svg" xlink:href="31-organize.svg">
+<text x="254" y="559" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="15" font-weight="400" text-anchor="end" fill="#727780">⋯</text>
+</a>
+<a href="18-project-chat.svg" xlink:href="18-project-chat.svg">
+<text x="92" y="594" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="#202124">讨论模型接入</text>
+</a>
+<a href="31-organize.svg" xlink:href="31-organize.svg">
+<text x="254" y="594" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="15" font-weight="400" text-anchor="end" fill="#727780">⋯</text>
+</a>
+<text x="66" y="642" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="400" text-anchor="start" fill="#727780">›</text>
+<path d="M1 5h7l3 3h9v11H1z" transform="translate(84 626)" fill="none" stroke="#727780" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="113" y="642" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#202124">个人知识库</text>
+<text x="67" y="698" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="600" text-anchor="start" fill="#727780">最近聊天</text>
+<text x="70" y="735" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#727780">为新项目写一段简介</text>
+<text x="70" y="770" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#727780">本地模型配置说明</text>
+<a href="20-archive.svg" xlink:href="20-archive.svg">
+<path d="M2 2h16v4H2zM4 6v12h12V6M8 10h4" transform="translate(68 816)" fill="none" stroke="#727780" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="99" y="831" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#727780">已归档</text>
+</a>
+<a href="21-settings-general.svg" xlink:href="21-settings-general.svg">
+<path d="M10 2v3M10 15v3M2 10h3M15 10h3M4 4l2 2M14 14l2 2M4 16l2-2M14 6l2-2M14 10a4 4 0 1 1-8 0a4 4 0 1 1 8 0" transform="translate(68 878)" fill="none" stroke="#727780" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="99" y="894" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#202124">设置…</text>
+</a>
+<text x="258" y="894" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#727780">⌘ ,</text>
+<text x="318" y="139" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="16" font-weight="600" text-anchor="start" fill="#202124">Dunlin C</text>
+<rect x="1096" y="111" width="224" height="36" rx="18" fill="url(#toolbarL)" stroke="#FFFFFF" stroke-width="1"/>
+<a href="50-identities.svg" xlink:href="50-identities.svg">
+<text x="1115" y="135" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#727780">● 陈舟 ▾</text>
+</a>
+<path d="M1200 121 L1200 137" fill="none" stroke="#CBD3E0" stroke-width="1.5"/>
+<a href="58-permissions.svg" xlink:href="58-permissions.svg">
+<text x="1220" y="135" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#727780">授权 2</text>
+</a>
+<rect x="1330" y="111" width="49" height="36" rx="18" fill="url(#toolbarL)" stroke="#FFFFFF" stroke-width="1"/>
+<path d="M3 10h1M9 10h1M15 10h1" transform="translate(1345 119)" fill="none" stroke="#727780" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M286 162 L1400 162" fill="none" stroke="#E3E6EB" stroke-width="1.5"/>
+<text x="335" y="229" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="30" font-weight="600" text-anchor="start" fill="#202124">Dunlin C</text>
+<text x="335" y="264" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#727780">~/workspace/ailifelab/dunlin-c</text>
+<a href="17-project-settings.svg" xlink:href="17-project-settings.svg">
+<rect x="1068" y="207" width="133" height="34" rx="9" fill="#FFFFFF" stroke="#E3E6EB" stroke-width="1"/>
+<text x="1134.5" y="229" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="500" text-anchor="middle" fill="#202124">项目设置</text>
+</a>
+<a href="18-project-chat.svg" xlink:href="18-project-chat.svg">
+<rect x="1215" y="207" width="134" height="34" rx="9" fill="#0069D6"/>
+<text x="1282.0" y="229" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="500" text-anchor="middle" fill="#FFFFFF">新聊天</text>
+</a>
+<rect x="335" y="290" width="100" height="26" rx="13" fill="#EAF2FF"/>
+<text x="385.0" y="308" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="500" text-anchor="middle" fill="#326AA8">目录可访问</text>
+<rect x="448" y="290" width="105" height="26" rx="13" fill="#EAF2FF"/>
+<text x="500.5" y="308" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="500" text-anchor="middle" fill="#326AA8">可编辑 · 可执行</text>
+<text x="335" y="365" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="17" font-weight="600" text-anchor="start" fill="#202124">聊天</text>
+<a href="38-project-context.svg" xlink:href="38-project-context.svg">
+<text x="421" y="365" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="16" font-weight="400" text-anchor="start" fill="#727780">上下文  2</text>
+</a>
+<path d="M335 382 L1350 382" fill="none" stroke="#E3E6EB" stroke-width="1.5"/>
+<path d="M2 2h16v12H7l-5 4z" transform="translate(350 419)" fill="none" stroke="#727780" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+<a href="18-project-chat.svg" xlink:href="18-project-chat.svg">
+<text x="389" y="434" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="16" font-weight="500" text-anchor="start" fill="#202124">梳理运行时的职责</text>
+</a>
+<text x="389" y="460" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#727780">本地 Qwen · 已完成</text>
+<text x="1320" y="436" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end" fill="#727780">刚刚</text>
+<path d="M335 483 L1350 483" fill="none" stroke="#E3E6EB" stroke-width="1.5"/>
+<path d="M2 2h16v12H7l-5 4z" transform="translate(350 511)" fill="none" stroke="#727780" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+<a href="18-project-chat.svg" xlink:href="18-project-chat.svg">
+<text x="389" y="526" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="16" font-weight="500" text-anchor="start" fill="#202124">设计模型配置流程</text>
+</a>
+<text x="389" y="552" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#727780">本地 Qwen · 已完成</text>
+<text x="1320" y="528" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end" fill="#727780">今天</text>
+<path d="M335 575 L1350 575" fill="none" stroke="#E3E6EB" stroke-width="1.5"/>
+<path d="M2 2h16v12H7l-5 4z" transform="translate(350 603)" fill="none" stroke="#727780" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+<a href="18-project-chat.svg" xlink:href="18-project-chat.svg">
+<text x="389" y="618" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="16" font-weight="500" text-anchor="start" fill="#202124">整理待验证的接口</text>
+</a>
+<text x="389" y="644" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#727780">远程助手 · 已停止</text>
+<text x="1320" y="620" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end" fill="#727780">昨天</text>
+<path d="M335 667 L1350 667" fill="none" stroke="#E3E6EB" stroke-width="1.5"/>
+<path d="M2 2h16v12H7l-5 4z" transform="translate(350 695)" fill="none" stroke="#727780" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+<a href="18-project-chat.svg" xlink:href="18-project-chat.svg">
+<text x="389" y="710" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="16" font-weight="500" text-anchor="start" fill="#202124">解释会话恢复机制</text>
+</a>
+<text x="389" y="736" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#727780">本地 Qwen · 已完成</text>
+<text x="1320" y="712" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end" fill="#727780">11 月 5 日</text>
+<path d="M335 759 L1350 759" fill="none" stroke="#E3E6EB" stroke-width="1.5"/>
+<text x="335" y="840" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#727780">项目指令已启用 · 下一次请求使用最新保存的版本</text>
+</svg>
