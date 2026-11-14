@@ -20,12 +20,24 @@ dest.mkdir(parents=True,exist_ok=True)
 shutil.copyfile(root/'build/v51/dsh-web-runtime/runtime.js',dest/'web/runtime.js')
 shutil.copyfile(root/'build/v51/dsh-web-runtime/runtime.css',dest/'web/runtime.css')
 shutil.copyfile(root/'compat/dsh/web/pin.json',dest/'web/pin.json')
+# Match the immutable image workbench's embedded tldraw SDK exactly.
+canvas_pin=json.loads((root/'compat/dsh/web/static-assets.json').read_text());canvas_notice=root/'compat/dsh/web'/canvas_pin['notice']
+assert hashlib.sha256(canvas_notice.read_bytes()).hexdigest()==canvas_pin['notice_sha256']
+assert json.loads(lock.read_text())['packages']['node_modules/@tldraw/assets']['integrity']==canvas_pin['integrity']
+canvas_assets=web/'node_modules/@tldraw/assets'
+assert json.loads((canvas_assets/'package.json').read_text())['version']=='5.3.0'
+canvas_dest=dest/'web/tldraw/5.3.0';canvas_dest.mkdir(parents=True,exist_ok=True)
+for directory in ['fonts','icons','translations','embed-icons','watermarks']:
+ if (canvas_assets/directory).is_dir():shutil.copytree(canvas_assets/directory,canvas_dest/directory,dirs_exist_ok=True)
+
 for name in ['react','react-dom','use-sync-external-store']:
  shutil.copyfile(web/'node_modules'/name/'LICENSE',dest/'web'/(name+'-LICENSE.txt'))
 shutil.copyfile(root/'compat/dsh/web/vendor/ui-slots/LICENSE',dest/'web/DSH-LICENSE.txt')
 # Retain notices for every locked browser dependency, including embedded fonts.
 notices=dest/'web/licenses';notices.mkdir(exist_ok=True)
 packages=json.loads(lock.read_text())['packages'];licenses=[]
+shutil.copyfile(canvas_notice,notices/'tldraw-5.3.0-LICENSE.md')
+shutil.copyfile(root/'compat/dsh/web/static-assets.json',notices/'tldraw-assets-provenance.json')
 for relative,metadata in packages.items():
  if not relative:continue
  directory=web/relative

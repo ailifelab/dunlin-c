@@ -46,6 +46,33 @@ static int history_counts(J *checkpoint,int64_t *count,int64_t *tools,int64_t *i
   }else if(!json_object_is_type(content,json_type_string)&&!(eq(role,"assistant")&&!content))return 0;
  }return 1;
 }
+/* Use the compactor's compact UTF-8 JSON byte measure on portable history.
+ * System prompts, selected references, future tools and image pricing are
+ * finalized at request admission. Provider continuation data is private. */
+static size_t history_bytes(J *messages){
+ size_t n=messages?json_object_array_length(messages):0;
+ if(!n)return 0;
+ size_t total=2;
+ for(size_t i=0;i<n;i++){
+  J *message=json_object_array_get_idx(messages,i),*wire=json_object_new_object();
+  const char *fields[]={"role","name","tool_call_id","tool_calls"};
+  for(size_t k=0;k<sizeof fields/sizeof *fields;k++){
+   J *v=get(message,fields[k]);if(v)json_object_object_add(wire,fields[k],json_object_get(v));
+  }
+  J *content=get(message,"content");
+  if(json_object_is_type(content,json_type_array)){
+   J *parts=json_object_new_array();
+   for(size_t k=0;k<json_object_array_length(content);k++){
+    J *part=json_object_array_get_idx(content,k);
+    if(eq(str(part,"type"),"text"))json_object_array_add(parts,json_object_get(part));
+   }
+   json_object_object_add(wire,"content",parts);
+  }else json_object_object_add(wire,"content",json_object_get(content));
+  total+=strlen(json_object_to_json_string_ext(wire,JSON_C_TO_STRING_PLAIN))+(i!=0);
+  json_object_put(wire);
+ }
+ return total;
+}
 static J *review(dc_store *s,J *r,int apply){
  const char *chat=str(r,"chat"),*target=str(r,"target");J *revision=get(r,"revision");
  if(!ident(chat,0)||!ident(target,0)||!integer(revision))return reply(NULL,"model_switch_invalid");
@@ -77,6 +104,7 @@ static J *review(dc_store *s,J *r,int apply){
  }
  if(!error&&(json_object_get_boolean(get(checkpoint,"active"))||get(checkpoint,"pending")))error="model_switch_active_checkpoint";
  if(!error&&apply&&(!eq(current,str(r,"currentID"))||!eq(hash,str(r,"historyHash"))))error="model_switch_history_changed";
+ size_t history_size=error?0:history_bytes(messages);
  json_object_put(checkpoint);
  if(error){free(current);json_object_put(registry_reply);return reply(NULL,error);}
  dl_attachment_draft pending={0};dl_attachment_status pending_status=s->attachments?dl_attachments_draft(s->attachments,DL_ATTACHMENT_CHAT,chat,&pending):DL_ATTACHMENT_NOT_FOUND;
@@ -99,10 +127,13 @@ static J *review(dc_store *s,J *r,int apply){
  number(data,"configRevision",json_object_get_int64(revision));number(data,"messageCount",count);number(data,"toolResults",tools);number(data,"fileReceipts",receipts);number(data,"imageCount",images);
  number(data,"pendingImageCount",pending_images);text(data,"pendingID",pending.id);text(data,"imagePolicy",image_policy);text(data,"currentImagePolicy",current_policy);
  json_object_object_add(data,"canTextOnly",json_object_new_boolean(legacy_images==0&&(images||pending_images)));
- json_object_object_add(data,"canSwitch",json_object_new_boolean(blocked==NULL));if(blocked)text(data,"reason",blocked);text(data,"contextFit","unmeasured");
+ json_object_object_add(data,"canSwitch",json_object_new_boolean(blocked==NULL));if(blocked)text(data,"reason",blocked);
  dc_context_capabilities cap={.model_limit=(uint64_t)json_object_get_int64(get(model,"contextLimit")),.deployment_limit=(uint64_t)json_object_get_int64(get(model,"deploymentLimit")),.selected_limit=(uint64_t)json_object_get_int64(get(model,"contextBudget")),.client_limit=4194304,.output_limit=65536,.requested_output=(uint64_t)json_object_get_int64(get(model,"maxOutput")),.overhead_reserve=get(model,"contextReserve")?(uint64_t)json_object_get_int64(get(model,"contextReserve")):512};
  const char *limits[]={"outputLimit","advertisedOutputLimit"};for(size_t i=0;i<2;i++){J *v=get(model,limits[i]);if(v&&(uint64_t)json_object_get_int64(v)<cap.output_limit)cap.output_limit=(uint64_t)json_object_get_int64(v);}
- dc_context_range budget={0};int known=dc_context_budget(&cap,&budget)==DC_CONTEXT_VALID;json_object_object_add(data,"contextKnown",json_object_new_boolean(known));if(known)number(data,"contextSelected",(int64_t)budget.selected);
+ dc_context_range budget={0};int known=dc_context_budget(&cap,&budget)==DC_CONTEXT_VALID;json_object_object_add(data,"contextKnown",json_object_new_boolean(known));number(data,"historyEstimateBytes",(int64_t)history_size);
+ text(data,"estimateKind","portable-history-utf8-bytes");
+ text(data,"contextFit",!known?"unmeasured":history_size>=budget.input_budget?"requires_compaction":"within_history_estimate");
+ if(known){number(data,"contextSelected",(int64_t)budget.selected);number(data,"inputBudget",(int64_t)budget.input_budget);}
  if(apply){
   q=prep(s,"INSERT OR IGNORE INTO chat_properties(chat) VALUES(?)");bind(q,1,chat);int ok=q&&sqlite3_step(q)==SQLITE_DONE;sqlite3_finalize(q);
   q=ok?prep(s,"UPDATE chat_properties SET model=? WHERE chat=? AND model=?"):NULL;bind(q,1,target);bind(q,2,chat);bind(q,3,current);ok=q&&sqlite3_step(q)==SQLITE_DONE&&sqlite3_changes(s->db)==1;sqlite3_finalize(q);

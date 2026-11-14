@@ -13,4 +13,8 @@ typedef struct {
   int confirm_upgrade,const dc_hooks *,char **error,char **actual_engine);
 } dc_environment_provider_v1;
 int dc_extensions_register_environment(dc_store *,const dc_environment_provider_v1 *);
+/* Inspect a candidate in a temporary worker without downloading or enabling it. */
+typedef int (*dc_environment_detector)(const char *directory,const char *assets,const char *selected_engine,
+ const dc_hooks *,char **error,char **actual_engine);
+int dc_extensions_register_detector(dc_store *,dc_environment_detector);
 #endif

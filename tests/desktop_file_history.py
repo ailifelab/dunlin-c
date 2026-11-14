@@ -68,6 +68,19 @@ with tempfile.TemporaryDirectory(prefix='dunlin-file-history-') as tmp:
  for chat in ('chat','fault','unknown','denied'):assert lib.dc_delete_chat(db,chat.encode())
  assert sql.execute('SELECT count(*) FROM file_operations').fetchone()[0]==0 and sql.execute('SELECT count(*) FROM file_history_blobs').fetchone()[0]==0 and sql.execute('SELECT count(*) FROM file_restore_plans').fetchone()[0]==0;assert (work/'note.txt').read_text()==before;sql.close();lib.dc_close(db)
  print('PASS snapshot corruption refuses restore/new publication; chat deletion cleans owned histories/plans/unreferenced blobs and preserves project files')
+ # Ordinary chats also capture a workspace identity; they have no project row.
+ ordinary=root/'ordinary';ordinary.mkdir();db=lib.dc_open(str(state).encode());assert db
+ assert lib.dc_add_chat(db,b'ordinary',b'Ordinary workspace',str(ordinary).encode())
+ receipt_input=dict(path='scratch.txt',text='owned ordinary file',expected_sha256='new')
+ assert run(chat='ordinary',**receipt_input)['status']=='completed'
+ receipt=entries('ordinary')[0]
+ assert detail(receipt['id'],'ordinary')['data']['canRestore']
+ moved=root/'moved-ordinary';ordinary.rename(moved);ordinary.mkdir()
+ assert detail(receipt['id'],'ordinary')['data']['currentState']=='project_unavailable'
+ ordinary.rmdir();moved.rename(ordinary)
+ assert restore(preview(receipt['id'],'ordinary'),'ordinary')['ok'] and not (ordinary/'scratch.txt').exists()
+ lib.dc_close(db)
+ print('PASS ordinary chat receipt read and rollback use captured workspace identity; substituted directory is refused.')
 server.shutdown();server.server_close()
 
 if os.environ.get('DUNLIN_SKIP_CRASH_CHILD')=='1':

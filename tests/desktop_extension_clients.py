@@ -22,10 +22,14 @@ with tempfile.TemporaryDirectory(prefix='dunlin-client-seal-') as tmp:
   def write(): (plugin/'dunlin.json').write_text(json.dumps(manifest))
   manifest['client']['slots']=['root'];write();assert req('extensions.import',path=str(plugin))['error']=='extension_client_unsupported'
   manifest['client']['slots']=['conversation.composer.dock'];manifest['client']['entry']='../client.js';write();assert req('extensions.import',path=str(plugin))['error']=='extension_client_invalid'
+  manifest['client']['entry']='client.js'
+  manifest['client']['slots']=['conversation.chat.reasoning.body','conversation.chat.reasoning.body'];write()
+  assert req('extensions.import',path=str(plugin))['error']=='extension_client_unsupported'
+  manifest['client']['slots']=['shell.overlay','conversation.chat.reasoning.body']
   manifest['client']['entry']='client.js';write();row=ok('extensions.import',path=str(plugin))[0];ref={k:row[k] for k in ('source','package','version')}
   assert ok('extensions.clients')==[]
   ok('extensions.bind',**ref,enabled=True,acceptHostPermissions=True)
-  clients=ok('extensions.clients');assert len(clients)==1 and clients[0]['code']==code and clients[0]['config']=={}
+  clients=ok('extensions.clients');assert len(clients)==1 and clients[0]['code']==code and clients[0]['config']=={} and clients[0]['slots']==['shell.overlay','conversation.chat.reasoning.body']
   assert req('extensions.clientFault',**dict(ref,version='stale'))['error']=='stale_client_fault'
   assert len(ok('extensions.clients'))==1
   ok('extensions.clientFault',**ref);assert ok('extensions.clients')==[]

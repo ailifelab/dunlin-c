@@ -1,0 +1,9 @@
+{
+  "package": "@tldraw/assets",
+  "version": "5.3.0",
+  "integrity": "sha512-FBsNm9d9xT++pgu5KgDPoEOJFUg5s9hlvAADnO2tsn9gOPNIuXe6eHyKoXZDD/K7k4VKo6FBUpoPtGDn7Gxckw==",
+  "notice": "notices/tldraw-5.3.0-LICENSE.md",
+  "notice_sha256": "9578fcddc20e404b6a29f44b6fea81d8b331698c0e7e9be34132d6f4394fa533",
+  "notice_source": "https://raw.githubusercontent.com/tldraw/tldraw/v5.3.0/LICENSE.md",
+  "scope": "Official fixed static assets only. Licensing code, watermark and license-key enforcement are unchanged; no production license is supplied."
+}

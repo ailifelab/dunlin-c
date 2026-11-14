@@ -51,6 +51,15 @@ try:
   assert protected and any(caption in line for line in protected),protected
   assert not any('Image attachment reference' in line or 'Pixels are absent' in line or 'metadata alone' in line for line in protected),('attachment checkpoint guidance was mislabeled as an original user quotation',protected)
   assert not any('_dunlin_' in key for r in summary for m in r['messages'] for key in m),summary
+  config['desktop_context'].update(modelLimit=65536,selectedLimit=65536,threshold=.95,omitHistoryImages=True)
+  staged=value(lib.dc_attachment_stage(db,b'context',None,b'new.png',b'file',1,png,len(png)));assert staged['ok']
+  run('new image',staged['data']['id'])
+  inputs=requests[-1]['messages']
+  assert sum(isinstance(m.get('content'),list) for m in inputs)==1 and isinstance(inputs[-1]['content'],list),inputs
+  config['desktop_context']['omitHistoryImages']=False
+  run('restore previous pictures')
+  assert sum(isinstance(m.get('content'),list) for m in requests[-1]['messages'])==2
+  print('PASS historical images omitted on request, current image still sent, both originals restored by switching preference off')
   assert not errors,errors;lib.dc_close(db)
   print('PASS semantic summary receives only text references; protected quotations use original caption/sequence, not generated attachment guidance')
 finally:server.shutdown();server.server_close();worker.join(2)

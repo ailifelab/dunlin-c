@@ -15,7 +15,7 @@ import Foundation
     precondition(!safe.contains("href='javascript:") && !safe.contains("href='file:"))
     precondition(safe.contains("href='https://example.com/test'"))
     precondition(safe.contains("script-src 'none'") && safe.contains("connect-src 'none'") && safe.contains("img-src 'none'"))
-    precondition(safe.contains("color-scheme:dark") && safe.contains("font-size:16.0px"))
+    precondition(safe.contains("color-scheme:dark") && safe.contains("font-size:14.0px") && safe.contains("line-height:1.5"))
     for bad in ["javascript:alert(1)","file:///tmp/x","data:text/html,abc","dunlin-copy:0","https://user:secret@example.com","https:///", "mailto:a@example.com"] {
       precondition(ChatHTMLDocument.externalLink(bad) == nil, bad)
     }

@@ -6,6 +6,7 @@
 static dl_agent_job job(const char *id,const char *chat,const char *resource,int write,const char *parent){
     dl_agent_job j={0};snprintf(j.id,sizeof j.id,"%s",id);snprintf(j.chat,sizeof j.chat,"%s",chat);snprintf(j.resource,sizeof j.resource,"%s",resource);snprintf(j.parent,sizeof j.parent,"%s",parent);strcpy(j.project,"project");strcpy(j.model,"model");j.task="保留原意；不要覆盖其他 Agent 的文件。";j.write_access=write;return j;
 }
+static unsigned external_load(void *raw){return *(unsigned*)raw;}
 int main(int argc,char **argv){
     sqlite3 *db=NULL,*other=NULL;const char *path=argc>1?argv[1]:":memory:";assert(sqlite3_open(path,&db)==SQLITE_OK);
     dl_agent_scheduler *s=dl_agent_scheduler_open(db,"owner",2);assert(s);
@@ -62,5 +63,21 @@ int main(int argc,char **argv){
     assert(dl_agent_finish(s,"explicit-second",second,"succeeded")==DL_SCHED_OK);
     assert(dl_agent_claim_id(s,"explicit-first",&out)==DL_SCHED_OK&&!strcmp(out.id,"explicit-first"));first=out.generation;dl_agent_job_clear(&out);
     assert(dl_agent_finish(s,"explicit-first",first,"succeeded")==DL_SCHED_OK);
-    dl_agent_scheduler_close(s);assert(sqlite3_close(db)==SQLITE_OK);puts("PASS scheduler claims, resource/chat exclusion, stale completion, nested cancellation, explicit recovery, isolation and limits");return 0;
+    a=job("remove-queued","remove-chat","remove-resource",1,"");assert(dl_agent_enqueue(s,&a)==DL_SCHED_OK);
+    child=job("remove-child","remove-child-chat","remove-child-resource",1,"remove-queued");assert(dl_agent_enqueue(s,&child)==DL_SCHED_OK);
+    assert(dl_agent_cancel_queued(s,"remove-queued")==DL_SCHED_OK);assert(dl_agent_job_get(s,"remove-child",&out)==DL_SCHED_OK&&!strcmp(out.state,"cancelled"));dl_agent_job_clear(&out);
+    assert(dl_agent_cancel_queued(s,"remove-queued")==DL_SCHED_STALE);assert(dl_agent_cancel_queued(s,"missing")==DL_SCHED_EMPTY);
+    a=job("keep-running","keep-chat","keep-resource",1,"");assert(dl_agent_enqueue(s,&a)==DL_SCHED_OK);assert(dl_agent_claim_id(s,"keep-running",&out)==DL_SCHED_OK);first=out.generation;dl_agent_job_clear(&out);
+    child=job("keep-child","keep-child-chat","keep-child-resource",1,"keep-running");assert(dl_agent_enqueue(s,&child)==DL_SCHED_OK);
+    assert(dl_agent_cancel_queued(s,"keep-running")==DL_SCHED_STALE);assert(dl_agent_job_get(s,"keep-running",&out)==DL_SCHED_OK&&!strcmp(out.state,"running"));dl_agent_job_clear(&out);assert(dl_agent_job_get(s,"keep-child",&out)==DL_SCHED_OK&&!strcmp(out.state,"queued"));dl_agent_job_clear(&out);
+    assert(dl_agent_park(s,"keep-running",first)==DL_SCHED_OK);assert(dl_agent_cancel_queued(s,"keep-running")==DL_SCHED_STALE);assert(dl_agent_job_get(s,"keep-running",&out)==DL_SCHED_OK&&!strcmp(out.state,"waiting"));dl_agent_job_clear(&out);assert(dl_agent_cancel(s,"keep-running")==DL_SCHED_OK);
+    /* Shared host executor consumes the same capacity under claim/wake TX. */
+    unsigned external=2;dl_agent_scheduler_external_load(s,external_load,&external);
+    a=job("external-first","external-chat","external-resource",1,"");assert(dl_agent_enqueue(s,&a)==DL_SCHED_OK);
+    assert(dl_agent_claim_id(s,a.id,&out)==DL_SCHED_EMPTY);
+    external=1;assert(dl_agent_claim_id(s,a.id,&out)==DL_SCHED_OK);first=out.generation;dl_agent_job_clear(&out);
+    assert(dl_agent_park(s,a.id,first)==DL_SCHED_OK);external=2;assert(dl_agent_wake(s,a.id,first)==DL_SCHED_LIMIT);
+    external=1;assert(dl_agent_wake(s,a.id,first)==DL_SCHED_OK);assert(dl_agent_finish(s,a.id,first,"succeeded")==DL_SCHED_OK);
+    dl_agent_scheduler_external_load(s,NULL,NULL);
+    dl_agent_scheduler_close(s);assert(sqlite3_close(db)==SQLITE_OK);puts("PASS scheduler claims, resource/chat exclusion, stale completion, nested cancellation, explicit recovery, queued-only retraction, isolation and limits");return 0;
 }

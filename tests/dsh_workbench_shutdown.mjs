@@ -1,0 +1,20 @@
+// Real five-package owner, real C admission and Node transports. All negatives
+// must fail without poisoning another page/package or mutating test workspace.
+import fs from 'node:fs/promises';import path from 'node:path';import {spawn} from 'node:child_process';import readline from 'node:readline';import {createHash} from 'node:crypto';import assert from 'node:assert/strict';
+const child=spawn(path.resolve('build/v51/current-core/python-asan'),['tests/dsh_workbench_owner.py',path.resolve(process.env.DUNLIN_WORKBENCH_LIBRARY),path.resolve(process.env.DUNLIN_WORKBENCH_ASSETS),'reports/v51-current/real-dsh-published-inputs.json'],{stdio:['pipe','pipe','pipe']});let stderr='';child.stderr.on('data',x=>stderr+=x);const reader=readline.createInterface({input:child.stdout});const init=await new Promise((resolve,reject)=>{reader.once('line',x=>resolve(JSON.parse(x)));child.once('exit',code=>reject(Error('owner exited '+code+' '+stderr)))});
+const dir=process.env.DUNLIN_WORKBENCH_REPORT;await fs.mkdir(dir,{recursive:true});
+async function call(route,data){const r=await(await fetch('http://127.0.0.1:'+init.port+route,{method:'POST',headers:{'X-Dunlin-Owner':init.token},body:JSON.stringify(data)})).json();if(!r.ok)throw Object.assign(Error(r.error),{failure:r.failure});return r.value}
+const command=(plugin,command,args)=>call('/invoke',{plugin,command,args});const image=(method,args)=>command('dsh-image-gen',method,args);
+try{
+ const refused=await call('/quiesce-with-worker',{});assert.equal(refused.ok,false);assert.equal(refused.error,'extension_workers_still_open');assert.equal((await call('/manage',{op:'extensions.clients'})).length,5,'shared-worker refusal changed active plugins');
+ await image('config.set',{field:'provider',value:'openai-compat'});await image('config.set',{field:'openaiCompatBaseURL',value:init.imageProvider});await image('config.set',{field:'openaiCompatModel',value:'owned-shutdown-image'});await image('config.set',{field:'saveToWorkspace',value:false});await image('rpc',{namespace:'credentials',method:'set',args:['DSH_IMAGE_GEN_OPENAI_COMPAT_KEY','fixture-image-key']});await call('/image-delay',{seconds:8});
+ const pending=await image('http',{url:'/plugins/dsh-image-gen/studio',method:'POST',body:{mode:'generate',provider:'openai-compat',model:'owned-shutdown-image',prompt:'Owned graceful shutdown fixture',ratio:'1:1',quality:'standard'},_surface:'owned-shutdown'});assert.ok(pending.pendingHandle);
+ const stopped=await call('/manage',{op:'extensions.quiesce'});assert.equal(stopped.closed,5);
+ assert.equal((await call('/manage',{op:'extensions.clients'})).length,0);
+ const before=await call('/manage',{op:'extensions.list'});assert.ok(before.every(row=>row.enabled),'quiesce changed desired bindings');
+ let state=await call('/inspect',{});assert.equal(state.requests.find(r=>r.id===pending.pendingHandle).callStatus,'cancelled_effects_possible');
+ await call('/restart',{});await call('/manage',{op:'extensions.assets',arguments:{path:path.resolve(process.env.DUNLIN_WORKBENCH_ASSETS)}});const restored=await call('/manage',{op:'extensions.restore'});assert.equal(restored.failed,0,JSON.stringify(restored));
+ assert.equal((await call('/manage',{op:'extensions.clients'})).length,5,'normal shutdown quarantined a plugin');
+ state=await call('/inspect',{});assert.equal(state.requests.find(r=>r.id===pending.pendingHandle).state,'cancelled_effects_possible');await assert.rejects(image('http.pending',{id:pending.pendingHandle,_surface:'owned-shutdown'}),/extension_request_unavailable/);
+ await fs.writeFile(path.join(dir,'result.json'),JSON.stringify({actualPendingImage:true,auditedQuiesce:true,bindingsPreserved:true,uncertainExternalEffectsRetained:true,restartWithoutQuarantine:true,oldHandleNotReplayed:true},null,2));console.log('PASS explicit graceful C quiesce cancels actual pending image operation, retains effect uncertainty and desired bindings, restores without quarantine or replay');
+}finally{child.stdin.end('\n');await new Promise(resolve=>child.once('exit',resolve));await fs.writeFile(path.join(dir,'owner-stderr.log'),stderr)}

@@ -1,0 +1,6 @@
+{
+  "protocol": "dunlin.extension", "major": 1, "kind": "plugin",
+  "packageId": "dunlin-extractive", "displayName": "本地摘录", "version": "1.0.0",
+  "contextStrategy": "extractive-v1", "engines": {"host": "python", "dunlin": "desktop@1"},
+  "entry": "strategy.py", "requires": [], "capabilities": ["trusted-full-host"], "dependencies": []
+}

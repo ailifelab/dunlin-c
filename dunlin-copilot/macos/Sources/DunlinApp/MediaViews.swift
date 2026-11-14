@@ -255,7 +255,7 @@ struct MediaSettingsView: View {
   }
   private func row<Control:View>(_ title:String,detail:String? = nil,@ViewBuilder control:()->Control)->some View {
     HStack(spacing:24) {
-      VStack(alignment:.leading,spacing:8) {Text(title).font(.system(size:14,weight:.medium));if let detail {Text(detail).font(.system(size:12)).foregroundStyle(.secondary)}}
+      VStack(alignment:.leading,spacing:8) {Text(title).font(.body.weight(.medium));if let detail {Text(detail).font(.callout).foregroundStyle(.secondary)}}
       Spacer(minLength:16);control()
     }.frame(minHeight:76).padding(.vertical,4)
   }
@@ -336,7 +336,7 @@ struct MediaCallView: View {
       .onDisappear {store.endMediaCall()}
   }
   private func control(_ title:String,icon:String,destructive:Bool = false,action:@escaping ()->Void)->some View {
-    Button(action:action) {VStack(spacing:10) {Image(systemName:icon).font(.system(size:23)).frame(width:58,height:58).background(destructive ? Color.red:Color.white.opacity(0.12),in:Circle());Text(title).font(.caption)}}.buttonStyle(.plain)
+    Button(action:action) {VStack(spacing:10) {Image(systemName:icon).font(.title).frame(width:58,height:58).background(destructive ? Color.red:Color.white.opacity(0.12),in:Circle());Text(title).font(.caption)}}.buttonStyle(.plain)
   }
 }
 struct MediaTranscriptView: View {

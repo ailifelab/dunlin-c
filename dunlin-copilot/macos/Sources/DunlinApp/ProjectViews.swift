@@ -8,7 +8,7 @@ struct ProjectsView: View {
     VStack(alignment: .leading, spacing: 24) {
       HStack {
         VStack(alignment: .leading, spacing: 7) {
-          Text("你的项目").font(.system(size: 27, weight: .semibold))
+          Text("你的项目").font(.title.weight(.semibold))
           Text("把文件夹、项目指令和相关聊天放在一起。").foregroundStyle(.secondary)
         }
         Spacer()
@@ -34,42 +34,58 @@ struct ProjectsView: View {
         }
       } else {
         ScrollView {
-          LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 18)], spacing: 18) {
-            ForEach(
-              store.projects.filter { matches($0) }
-            ) { project in
-              VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                  Image(systemName: project.available ? "folder" : "folder.badge.questionmark")
-                    .font(.title2).foregroundStyle(project.available ? Color.accentColor : .orange)
-                  Spacer()
-                  Menu {
-                    Button("项目属性…") { store.editProject(project) }
-                    Button("在访达中显示") {
-                      NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: project.path)
-                    }
-                    Button("移除项目…", role: .destructive) { store.removeProject(project) }
+          VStack(alignment: .leading, spacing: 24) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 350), spacing: 18)], spacing: 18) {
+              ForEach(
+                store.projects.filter { matches($0) }
+              ) { project in
+                VStack(alignment: .leading, spacing: 14) {
+                  HStack {
+                    Button { store.editProject(project) } label: {
+                      Image(systemName: project.available ? "folder" : "folder.badge.questionmark")
+                        .font(.title2).foregroundStyle(project.available ? Color.accentColor : .orange)
+                    }.buttonStyle(.plain).help("项目属性")
+                      .accessibilityLabel("项目属性：" + project.name)
+                      .accessibilityIdentifier("projects.settings." + project.id)
+                    Spacer()
+                    Menu {
+                      Button("项目属性…") { store.editProject(project) }
+                      Button("在访达中显示") {
+                        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: project.path)
+                      }
+                      Button("移除项目…", role: .destructive) { store.removeProject(project) }
+                    } label: {
+                      Image(systemName: "ellipsis")
+                    }.menuStyle(.borderlessButton).fixedSize()
+                  }
+                  Button {
+                    store.openProject(project)
                   } label: {
-                    Image(systemName: "ellipsis")
-                  }.menuStyle(.borderlessButton).fixedSize()
-                }
-                Button {
-                  store.openProject(project)
-                } label: {
-                  VStack(alignment: .leading, spacing: 9) {
-                    Text(project.name).font(.headline)
-                    Text(project.path).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                    Text(
-                      project.available
-                        ? "\(project.chatCount) 段聊天 · \(project.context.count) 份资料"
-                        : project.availability
-                    )
-                    .font(.caption).foregroundStyle(project.available ? Color.secondary : .orange)
-                  }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-                }.buttonStyle(.plain).accessibilityIdentifier("projects.open.\(project.id)")
-              }.padding(20).frame(maxWidth: .infinity, minHeight: 155, alignment: .topLeading)
-                .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 13))
+                    VStack(alignment: .leading, spacing: 9) {
+                      Text(project.name).font(.headline)
+                      Text(project.path).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                      Text(
+                        project.available
+                          ? "\(project.chatCount) 段聊天 · \(project.context.count) 份资料"
+                          : project.availability
+                      )
+                      .font(.caption).foregroundStyle(project.available ? Color.secondary : .orange)
+                      Label("打开项目", systemImage: "arrow.right").labelStyle(.titleAndIcon)
+                        .font(.callout.weight(.medium)).foregroundStyle(store.themeTint)
+                    }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                  }.buttonStyle(.plain).accessibilityIdentifier("projects.open.\(project.id)")
+                }.padding(20).frame(maxWidth: .infinity, minHeight: 155, alignment: .topLeading)
+                  .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 13))
+              }
             }
+            VStack(alignment: .leading, spacing: 8) {
+              Text("新项目，从一个文件夹开始。").font(.headline)
+              Text("项目指令会用于后续请求。文件内容仅在你选择或允许读取时发送。")
+              Text("移除项目只移除应用里的关联，不删除磁盘上的文件夹。")
+            }
+            .font(.callout).foregroundStyle(.secondary).padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 12))
           }
         }
       }
@@ -90,7 +106,7 @@ struct ProjectHomeView: View {
       VStack(alignment: .leading, spacing: 26) {
         HStack {
           VStack(alignment: .leading, spacing: 10) {
-            Text(project.name).font(.system(size: 27, weight: .semibold))
+            Text(project.name).font(.title.weight(.semibold))
             Text(project.path).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
           }
           Spacer()
@@ -99,32 +115,54 @@ struct ProjectHomeView: View {
           Button("新聊天") { store.newChat(workspace: project.path) }.buttonStyle(.borderedProminent)
             .disabled(!project.available).accessibilityIdentifier("project.home.newChat")
         }
-        HStack(spacing: 16) {
-          Label(
-            project.available ? "目录可访问" : project.availability,
-            systemImage: project.available ? "checkmark.circle" : "exclamationmark.triangle"
-          )
-          .foregroundStyle(project.available ? Color.green : Color.orange)
-          Label(
-            project.policy == "readOnly"
-              ? "只读工具" : project.policy == "noTools" ? "不使用工具" : "可编辑 · 可执行",
-            systemImage: "lock.shield"
-          ).foregroundStyle(.secondary)
-          if !project.available {
-            Button("重新选择文件夹…") { store.chooseProjectDefaultFolder(project) }
-            Button("重试访问", action: store.reloadProjects)
-          }
-        }.font(.callout)
-        HStack(spacing: 24) {
-          tab("聊天", page: "chats")
-          tab("上下文  \(project.context.count)", page: "context")
-          Spacer()
-        }.overlay(alignment: .bottom) { Divider() }
-        if store.projectPage == "context" { contextContent } else { chatsContent }
+        if !project.available {
+          unavailableProject
+          Text("已保存的聊天").font(.title2.weight(.semibold))
+          chatsContent
+          Text("更换为另一个目录会用于新聊天，已有聊天保留原工作区。")
+            .font(.caption).foregroundStyle(.secondary)
+        } else {
+          HStack(spacing: 16) {
+            Label("目录可访问", systemImage: "checkmark.circle")
+              .foregroundStyle(.green)
+            Label(
+              project.policy == "readOnly"
+                ? "只读工具" : project.policy == "noTools" ? "不使用工具" : "可编辑 · 可执行",
+              systemImage: "lock.shield"
+            ).foregroundStyle(.secondary)
+          }.font(.callout)
+          HStack(spacing: 24) {
+            tab("聊天", page: "chats")
+            tab("上下文  \(project.context.count)", page: "context")
+            Spacer()
+          }.overlay(alignment: .bottom) { Divider() }
+          if store.projectPage == "context" { contextContent } else { chatsContent }
+        }
       }.padding(32)
     }.accessibilityIdentifier("project.home")
       .onChange(of: project.id) { _, _ in showingFiles = false }
   }
+  private var unavailableProject: some View {
+    HStack(alignment: .center, spacing: 24) {
+      VStack(alignment: .leading, spacing: 8) {
+        Label(project.availability.contains("身份") ? "项目文件夹已更换" : "找不到项目文件夹",
+              systemImage: "exclamationmark.triangle").font(.headline)
+        Text(project.availability.contains("身份")
+             ? "当前位置的文件夹和项目记录不一致。" : "可能是磁盘未连接，或文件夹已经移动。")
+        Text("仍然可以阅读已保存的聊天，重新连接前不能读取此目录的新文件。")
+      }
+      .font(.callout)
+      Spacer()
+      VStack(spacing: 10) {
+        Button("重新选择文件夹…") { store.chooseProjectDefaultFolder(project) }
+        Button("重试访问", action: store.reloadProjects)
+      }
+    }
+    .padding(20).frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 12))
+    .accessibilityIdentifier("project.unavailable")
+  }
+
   private func tab(_ title: String, page: String) -> some View {
     Button {
       store.projectPage = page
@@ -152,7 +190,7 @@ struct ProjectHomeView: View {
           } label: {
             VStack(alignment: .leading, spacing: 10) {
               Label(chat.title, systemImage: chat.pinned ? "pin" : "bubble.left")
-                .font(.system(size: 16, weight: .medium))
+                .font(.headline.weight(.medium))
               Text(
                 "\(store.profiles.first(where: {$0.id == chat.model})?.name ?? "跟随默认模型") · \(chat.statusLabel)"
               )
@@ -447,7 +485,7 @@ struct ArchivedChatsView: View {
   @EnvironmentObject var store: WorkspaceStore
   var body: some View {
     VStack(alignment: .leading, spacing: 24) {
-      Text("已归档").font(.system(size: 27, weight: .semibold))
+      Text("已归档").font(.title.weight(.semibold))
       Text("归档保留完整聊天记录。可以恢复，也可以永久删除并清理缓存。").foregroundStyle(.secondary)
       List(store.chats.filter { $0.archived }) { chat in
         HStack {
@@ -475,11 +513,72 @@ struct ProjectDocumentView: View {
         Button("完成") { dismiss() }
       }
       ScrollView([.horizontal, .vertical]) {
-        Text(document.text).font(.system(size: 13, design: .monospaced)).textSelection(.enabled)
+        Text(document.text).font(.system(.body, design: .monospaced)).textSelection(.enabled)
           .frame(maxWidth: .infinity, alignment: .topLeading).padding()
       }
       Text("SHA-256 · \(document.sha256)").font(.caption2.monospaced()).foregroundStyle(.secondary)
         .textSelection(.enabled)
     }.padding(24).frame(width: 820, height: 600)
+  }
+}
+
+
+private struct ChatCleanupPreview: Decodable {
+  let exclusiveBytes: Int64
+  let messages, memories, preservable: Int
+}
+
+struct ChatCleanupView: View {
+  @EnvironmentObject var store: WorkspaceStore
+  @Environment(\.dismiss) private var dismiss
+  let chat: Chat
+  @State private var preview: ChatCleanupPreview?
+  @State private var keepMemories = false
+  @State private var feedback = ""
+  @State private var working = false
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 18) {
+      Text("删除聊天并清理？").font(.title2.weight(.semibold))
+      Text("「"+chat.title+"」"+(store.projects.first { $0.id == chat.project }.map { " · "+$0.name } ?? ""))
+        .foregroundStyle(.secondary)
+      VStack(alignment: .leading, spacing: 12) {
+        Label("聊天消息与搜索索引", systemImage:"text.bubble")
+        Label("专属附件、草稿和文件快照", systemImage:"paperclip")
+        Label("来自这段聊天的记忆", systemImage:"person.crop.circle")
+        if let preview,preview.preservable > 0 {
+          Toggle("保留原作用域中的 \(preview.preservable) 条全局或项目记忆",isOn:$keepMemories)
+            .toggleStyle(.checkbox)
+        }
+      }.padding(16).frame(maxWidth:.infinity,alignment:.leading).background(store.themeSurface,in:RoundedRectangle(cornerRadius:10))
+      if let preview {
+        Text("预计清理 "+ByteCountFormatter.string(fromByteCount:preview.exclusiveBytes,countStyle:.file)+" 专属数据").font(.headline)
+        Text("已有 \(preview.messages) 条消息、\(preview.memories) 条来源记忆。按记录、草稿和独占内容计量，磁盘文件大小取决于数据库回收。")
+          .font(.callout).foregroundStyle(.secondary)
+      } else if feedback.isEmpty {ProgressView("正在计算专属数据…").controlSize(.small)}
+      Text("项目文件与已执行命令的效果会保留。其他聊天仍在引用的内容及独立保存的记忆会保留。")
+        .font(.callout).foregroundStyle(.secondary)
+      if !feedback.isEmpty {Text(feedback).foregroundStyle(.red)}
+      HStack {
+        if preview == nil && !feedback.isEmpty {Button("重新计算",action:load)}
+        Spacer()
+        Button("取消"){dismiss()}.keyboardShortcut(.cancelAction)
+        Button("删除并清理",role:.destructive){
+          working=true
+          store.deleteReviewedChats([chat],preserveMemories:keepMemories){count in
+            working=false
+            if count==1 {dismiss()} else {feedback="聊天仍在运行或存在未决操作，请先处理后重试。"}
+          }
+        }.disabled(preview == nil || chat.active).accessibilityIdentifier("chat.cleanup.confirm")
+      }.disabled(working)
+    }.padding(28).frame(width:590).interactiveDismissDisabled(working).onAppear(perform:load)
+  }
+
+  private func load(){
+    feedback=""
+    store.workspaceRequest(["op":"chats.cleanup.preview","id":chat.id],as:ChatCleanupPreview.self){reply in
+      preview=reply.data
+      if !reply.ok {feedback="无法计算该聊天的独占数据。"}
+    }
   }
 }

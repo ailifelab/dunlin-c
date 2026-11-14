@@ -9,7 +9,10 @@ import SwiftUI
     guard let store = Self.store else { return .terminateNow }
     if !store.busy {
       store.draftSave?.cancel();if let id=store.selected {store.persistDraft(id)};store.saveSettings()
-      store.queue.async { DispatchQueue.main.async {sender.reply(toApplicationShouldTerminate:true)} }
+      store.preparePluginTermination {ready in
+        if !ready {let alert=NSAlert();alert.messageText="插件尚未安全停止";alert.informativeText=store.pluginFaultNotice;alert.runModal()}
+        sender.reply(toApplicationShouldTerminate:ready)
+      }
       return .terminateLater
     }
     store.stop()
@@ -24,8 +27,8 @@ import SwiftUI
   @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
   @StateObject private var store = WorkspaceStore()
   var body: some Scene {
-    WindowGroup {
-      MainView().environmentObject(store).onAppear {
+    WindowGroup(id: "workspace") {
+      MainView().environmentObject(store).disabled(store.terminating).onAppear {
         AppDelegate.store = store
         if ProcessInfo.processInfo.arguments.contains("--smoke-test") {
           DispatchQueue.main.asyncAfter(deadline: .now() + 1) { store.newChat() }
@@ -48,7 +51,7 @@ import SwiftUI
     }
     .defaultSize(width: 1360, height: 830)
     Window("通话", id: "media-call") { MediaCallView().environmentObject(store) }.defaultSize(width:720,height:760)
-    Settings { SettingsView().environmentObject(store) }.defaultSize(width:1360,height:830)
+    Settings { SettingsView().environmentObject(store).disabled(store.terminating) }.defaultSize(width:1360,height:830)
   }
 
 }

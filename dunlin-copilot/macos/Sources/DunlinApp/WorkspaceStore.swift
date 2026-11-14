@@ -24,6 +24,8 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
   @Published var messagesLoading = false
   @Published var messageReadError: String?
   @Published var chatCatalogLoaded = false
+  @Published var deletingChats = false
+  @Published var cleanupChat: Chat?
   @Published var creatingChat = false
   var messageRequestID = UUID()
   var projectContentEpoch = UUID()
@@ -53,8 +55,14 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
   @Published var agentSourceRevision:[String:Int] = [:]
   @Published var agentRunningIDs:Set<String> = []
   var agentWorkers:[String:Callbacks] = [:]
+  var helperWorkers:[String:Callbacks] = [:]
+  var helperReading=false
   var agentQueueReadToken=UUID()
   var agentWorkerProjects:[String:String] = [:]
+  @Published var terminating = false
+  var nativeAgentReading = false
+  var nativeAgentFailures:Set<String> = []
+  var nativeAgentEpoch:Int64 = -1
   var agentApprovalRequests:[AgentApprovalRequest] = []
   var agentApprovalPresenting = false
   var agentActiveApproval:(AgentApprovalRequest,NSAlert)?
@@ -80,8 +88,21 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
   @Published var mediaRecordWarning = ""
   var mediaStartToken = UUID()
   var mediaStarting = false
-  @Published var busy = false
+  @Published var knowledgePage: KnowledgePageRoute = .overview
+  var pendingIdentitySwitch: (target: DesktopIdentity, epoch: Int64)?
+  @Published var busy = false {
+    didSet {
+      if !busy, pendingIdentitySwitch != nil {
+        DispatchQueue.main.async { self.finishPendingIdentitySwitch() }
+      }
+    }
+  }
   @Published var stopping = false
+  @Published var compactingChat: String?
+  @Published var reincludeSelections: [String:ContextSourceSelection] = [:]
+  @Published var compactionIssueChat: String?
+  @Published var compactionCancelled = false
+  @Published var failedTurn: (chat:String, run:String)?
   @Published var error = ""
   @Published var activity: [String] = []
   @Published var projects: [ProjectRecord] = []
@@ -99,11 +120,26 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
   @Published var fileDirectory = ""
   @Published var openedDocument: ProjectDocument?
   @Published var skillScope: SkillScope?
-  @Published var search = ""
+  @Published var search = "" { didSet { if search != oldValue { hits = []; searchedQuery = nil; searchFailure = nil } } }
+  @Published var searchProject = ""
+  @Published var searchDays = 0
+  @Published var searchedQuery: String?
+  @Published var searchFailure: String?
   @Published var hits: [SearchHit] = []
   @Published var profiles: [ModelProfile] = []
   @Published var providers: [ProviderProfile] = []
   @Published var configImportPlan: ConfigImportPlan?
+  @Published var configImportReview: ConfigImportPlan?
+  @Published var configImportFilename = ""
+  @Published var configImportIssue = ""
+  var configImportRequest = UUID()
+  func resetImportReview() {
+    configImportRequest = UUID()
+    configImportFilename = ""
+    configImportIssue = ""
+    configImportReview = nil
+    configImportPlan = nil
+  }
   @Published var configSaving = false
   @Published var configurationReady = false
   var configRevision: Int64 = 0
@@ -119,6 +155,7 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
   @Published var defaultProfileID = ""
   @Published var theme = "system"
   @Published var pluginPages: [PluginPage] = []
+  let companionPanel = CompanionPanel()
   @Published var pluginClients: [PluginClient] = []
   @Published var pluginFaultNotice = ""
   @Published var settingsPluginLogs = false
@@ -129,6 +166,7 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
 
   @Published var pluginPageID = ""
   @Published var installedThemes: [InstalledTheme] = []
+  @Published var pluginPresentations: [PluginPresentation] = []
   @Published var showReasoning = false
   @Published var generalPreferences = GeneralPreferences()
   @Published var notificationStatus = ""
@@ -136,11 +174,8 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
   var notificationRequestID = UUID()
   @Published var contextPreferences = ContextPreferences()
   @Published var knowledgePreferences = KnowledgePreferences()
-  @Published var searchVisible = false
   @Published var inspectorVisible = true
-  @Published var changes: [FileChange] = []
   @Published var grants: [GrantRecord] = []
-  @Published var selectedChange: FileChange?
   @Published var receiptRows: [FileReceipt] = []
   @Published var receiptMore = false
   @Published var receiptError = ""
@@ -164,11 +199,11 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
   var identityEpoch: Int64 = 0
   private var runWorkspace = ""
   private var runChat = ""
-  var ordinaryRunningChat:String? {busy && agentWorkers.isEmpty && mediaCallID == nil ? runChat:nil}
+  var ordinaryRunningChat:String? {busy && callbacks != nil && !runChat.isEmpty && agentWorkers.isEmpty && helperWorkers.isEmpty && mediaCallID == nil ? runChat:nil}
   var drafts: [String: String] = [:]
   var draftSave: DispatchWorkItem?
   var currentGrants: [GrantRecord] { grants.filter { $0.chat == selected } }
-  var workspaceTransitioning: Bool { workspacePlanning || workspaceSaving || workspaceReview != nil }
+  var workspaceTransitioning: Bool { deletingChats || workspacePlanning || workspaceSaving || workspaceReview != nil }
   var selectedChat: Chat? { chats.first { $0.id == selected } }
   var requiresModelSelection: Bool {
     guard let chat = selectedChat else { return false }
@@ -176,7 +211,7 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
   }
   var canSendMessage: Bool {
     !busy && !creatingChat && !switchingModel && !checkingConnection && !configSaving
-      && !workspacePlanning && !workspaceSaving && workspaceReview == nil
+      && !workspaceTransitioning
       && configurationReady
       && handle != nil
       && selected != nil && selectedChat?.active != true
@@ -203,7 +238,7 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
   }
   let queue = DispatchQueue(label: "org.dunlin.desktop.runtime", qos: .utility)
   var handle: NativeStoreReference?
-  private var callbacks: Callbacks?
+  private(set) var callbacks: Callbacks?
   var directory: URL
   let rootDirectory: URL
   init() {
@@ -347,15 +382,8 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
     messageRequestID = request
     messagesLoading = true
     messageReadError = nil
-    let dataDirectory = directory
     queue.async {
       let rows = self.decode(dc_messages(h.raw, id), as: [Message].self)
-      let file = dataDirectory.appendingPathComponent("changes").appendingPathComponent(
-        id + ".json")
-      let changes =
-        (try? Data(contentsOf: file)).flatMap {
-          try? JSONDecoder().decode([FileChange].self, from: $0)
-        } ?? []
       DispatchQueue.main.async {
         if self.selected == id && self.identityEpoch == epoch
           && self.chatStreamCursor.stamp == stamp && !self.busy && self.messageRequestID == request
@@ -363,7 +391,6 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
           self.messagesLoading = false
           if let rows {
             self.messages = rows
-            self.changes = changes
           } else {
             self.error = "聊天记录暂时不可读，原始数据保留。请先核对恢复状态。"
             self.messageReadError = self.error
@@ -433,43 +460,50 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
     editingProject = ProjectRecord()
   }
   func removeChat(_ chat: Chat) {
-    guard !busy, let h = handle else { return }
-    let alert = NSAlert()
-    alert.messageText = "删除这段聊天？"
-    alert.informativeText = "聊天与检索缓存会删除。已修改的项目文件和已执行命令的效果会保留。"
-    alert.addButton(withTitle: "删除")
-    alert.addButton(withTitle: "取消")
-    alert.buttons[0].keyEquivalent = ""
-    alert.window.defaultButtonCell = nil
-    guard alert.runModal() == .alertFirstButtonReturn else { return }
+    guard !busy, !workspaceTransitioning, handle != nil else { return }
+    cleanupChat = chat
+  }
+
+  func deleteReviewedChats(_ reviewed: [Chat], preserveMemories: Bool = false, completion: @escaping (Int) -> Void) {
+    guard !busy, !workspaceTransitioning, !creatingChat, !attachmentInteraction, let h = handle
+    else { completion(0); return }
     let epoch = identityEpoch
     let dataDirectory = directory
+    let ids = Set(reviewed.map(\.id)).intersection(chats.map(\.id))
+    deletingChats = true
     queue.async {
-      let ok = dc_delete_chat(h.raw, chat.id)
+      let removed = Set(ids.filter { dc_delete_chat_preserving_memories(h.raw, $0, preserveMemories ? 1 : 0) != 0 })
+      for id in removed {
+        try? FileManager.default.removeItem(at: dataDirectory.appendingPathComponent("changes").appendingPathComponent(id + ".json"))
+      }
       DispatchQueue.main.async {
+        self.deletingChats = false
         guard self.identityEpoch == epoch else { return }
-        if ok != 0 {
-          self.chats.removeAll { $0.id == chat.id }
-          self.hits.removeAll { $0.chat == chat.id }
-          self.drafts.removeValue(forKey: chat.id)
-          try? FileManager.default.removeItem(
-            at: dataDirectory.appendingPathComponent("changes").appendingPathComponent(
-              chat.id + ".json"))
-          if self.selected == chat.id {
-            self.selected = nil
-            self.messages = []
-          }
-          self.reload()
-        } else {
-          self.error = "删除失败"
+        self.chats.removeAll { removed.contains($0.id) }
+        self.hits.removeAll { removed.contains($0.chat) }
+        for id in removed {
+          self.drafts.removeValue(forKey: id)
+          self.reincludeSelections.removeValue(forKey: id)
         }
+        if let selected = self.selected, removed.contains(selected) {
+          self.draftSave?.cancel()
+          self.draft = ""
+          self.selected = nil
+          self.messages = []
+          if self.chats.isEmpty { self.route = "archive" }
+        }
+        self.reload()
+        self.reloadProjects()
+        self.reloadGrants()
+        completion(removed.count)
       }
     }
   }
+
   func prepareIndex() {
     guard let h = handle else { return }
     let epoch = identityEpoch
-    queue.async {
+    queue.async(qos:.utility, flags:.enforceQoS) {
       let more = dc_index_pending(h.raw, 16)
       if more > 0 {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
@@ -493,13 +527,16 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
   func find() {
     guard !busy, let h = handle else { return }
     let query = search
+    let project = searchProject, days = searchDays
+    let since = days == 0 ? 0 : Int64(Date().addingTimeInterval(-Double(days) * 86400).timeIntervalSince1970 * 1000)
     let epoch = identityEpoch
     queue.async {
-      let rows = self.decode(dc_search(h.raw, query), as: [SearchHit].self)
+      let rows = self.decode(dc_search_filtered(h.raw, query, project.isEmpty ? nil : project, since), as: [SearchHit].self)
       DispatchQueue.main.async {
-        if self.identityEpoch == epoch && self.search == query {
+        if self.identityEpoch == epoch && self.search == query && self.searchProject == project && self.searchDays == days {
           self.hits = rows ?? []
-          if rows == nil { self.error = "搜索失败，请稍后重试。" }
+          self.searchedQuery = query
+          self.searchFailure = rows == nil ? "本地索引暂不可用，请到检索设置检查整理状态。" : nil
         }
       }
     }
@@ -509,9 +546,13 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
     run(input: draft)
   }
   func resume() { run(input: nil) }
-  func run(input: String?, agent: AgentJob? = nil) {
+  func retryFailedTurn() {
+    guard let failedTurn, failedTurn.chat == selected else{return}
+    run(input:nil,retry:failedTurn.run)
+  }
+  func run(input: String?, agent: AgentJob? = nil, retry:String? = nil) {
     guard !busy, !switchingModel, !checkingConnection, !configSaving, configurationReady,
-      !workspacePlanning, !workspaceSaving, workspaceReview == nil,
+      !workspaceTransitioning,
       let h = handle,
       let id = selected,
       let p = profiles.first(where: { $0.id == profileID })
@@ -522,6 +563,10 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
     }
     if ((p.contextLimit ?? 0) > 0 || (p.deploymentLimit ?? 0) > 0) && p.contextRange == nil {
       error = "模型上下文预算与输出预留不匹配，请在模型设置中调整。"
+      return
+    }
+    if reincludeSelections[id] != nil && p.contextRange == nil {
+      error = "请先配置当前模型的上下文预算，以便核对所选原文能否放入请求。"
       return
     }
     jumpToMessage = nil
@@ -540,6 +585,10 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
     liveReasoning = ""
     liveReasoningKind = "reasoning"
     liveModelName = nil
+    compactingChat = nil
+    compactionIssueChat = nil
+    compactionCancelled = false
+    failedTurn = nil
     let uiRun = chatStreamCursor.start(after: messages.compactMap(\.sequence).max() ?? -1)
     let runEpoch = identityEpoch
     activity = []
@@ -594,6 +643,8 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
           "tool.start", "tool.result", "exec.result", "context.trimmed", "context.compacting",
           "context.compacted", "knowledge.context",
         ].contains(name) {
+          if name == "context.compacting" { self.compactingChat = id }
+          if name == "context.compacted" { self.compactingChat = nil }
           self.activity.append(name + ": " + text)
         }
       }
@@ -626,6 +677,7 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
         ["path": $0, "sha256": selectedProjectReferences[$0]!]
       } : []
     let projectTurn = isProject
+    let sourceSelection = reincludeSelections[id]
     let contextPolicy = contextPreferences
     let knowledgePolicy = knowledgePreferences
     let configurationRevision = configRevision
@@ -678,15 +730,9 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
       }
       if let budget = p.contextRange {
         settings["max_tokens"] = Int(budget.output)
-        settings["desktop_context"] = [
-          "modelLimit": p.contextLimit ?? 0, "deploymentLimit": p.deploymentLimit ?? 0,
-          "selectedLimit": Int(budget.selected), "outputLimit": p.effectiveOutputLimit,
-          "requestedOutput": p.maxOutput, "reserve": p.contextReserve ?? 512,
-          "strategy": p.compactionStrategy ?? contextPolicy.strategy,
-          "automatic": contextPolicy.automatic,
-          "threshold": contextPolicy.threshold, "retainTurns": contextPolicy.retainTurns,
-          "summaryOutput": min(contextPolicy.summaryOutput, Int(budget.output)),
-        ]
+        var policy = contextPolicy.request(for:p, budget:budget)
+        if let sourceSelection { policy["reinclude"] = ["record":sourceSelection.record,"digests":sourceSelection.digests] }
+        settings["desktop_context"] = policy
       }
       let json =
         String(
@@ -696,6 +742,7 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
       var inputCommitted: Int32 = 0
       let raw: UnsafeMutablePointer<CChar>? = {
         if let task = agent { return dc_agent_execute(h.raw, task.id, json, secret, &observer) }
+        if let retry {return dc_retry_chat_turn(h.raw,id,json,retry,&observer,secret)}
         return input.map { value in
           value.withCString { text in
             if let attachmentID {
@@ -717,6 +764,9 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
         dc_free(raw)
       }
       DispatchQueue.main.async {
+        if result["status"] == "unknown" || result["status"] == nil {
+          self.pendingIdentitySwitch = nil
+        }
         self.busy = false
         self.stopping = false
         self.live = ""
@@ -724,17 +774,24 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
         self.liveModelName = nil
         self.chatStreamCursor.finish()
         self.callbacks = nil
+        if let token=result["retryRun"], agent == nil {self.failedTurn=(id,token)}
+        if self.compactingChat == id && result["status"] != "completed" {
+          self.compactionIssueChat = id
+          self.compactionCancelled = result["status"] == "cancelled"
+        }
+        self.compactingChat = nil
         if result["status"] != "completed" {
           switch result["status"] {
           case "denied": self.error = "本次工具请求未获授权。已完成的操作保留，可在工具记录中查看。"
           case "busy": self.error = "未完成的回合绑定原模型，请切回原配置后继续。"
           case "unknown": self.error = "执行结果尚未确认，请先核对工具记录，避免重复执行。"
           case "timeout": self.error = "请求超时。已完成的操作保留，请查看工具记录。"
-          case "cancelled": self.error = "本次请求已停止，聊天与已完成的操作保留。"
+          case "cancelled": self.error = self.compactionIssueChat == id ? "已取消整理，原始聊天保留。" : "本次请求已停止，聊天与已完成的操作保留。"
           default: self.error = "请求未完成：" + (result["text"] ?? "请检查连接后重试")
           }
           if agent == nil && !acceptedInput && self.draft.isEmpty { self.draft = input ?? "" }
         } else {
+          self.reincludeSelections.removeValue(forKey:id)
           self.selectedProjectReferences = [:]
         }
         self.loadMessages()
@@ -754,7 +811,14 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
       }
     }
   }
+  func cancelCompaction() {
+    guard let selected, compactingChat == selected, busy, let callbacks else { return }
+    stopping = true
+    callbacks.cancel()
+  }
+
   func stop() {
+    if !helperWorkers.isEmpty {for worker in helperWorkers.values {worker.cancel()};stopping=true;if agentWorkers.isEmpty {return}}
     if !agentWorkers.isEmpty {
       agentQueueRunning=false;stopping=true
       for worker in agentWorkers.values {worker.cancel()}
@@ -767,27 +831,59 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
     callbacks.cancel()
   }
   func reviewTool(_ tool: String, _ arguments: String) -> Int32 {
+    let alert = toolReviewAlert(tool, arguments)
+    let allowed = alert.runModal() == .alertFirstButtonReturn
+    grants.append(GrantRecord(chat: runChat, tool: tool, arguments: arguments, allowed: allowed))
+    return allowed ? 1 : 0
+  }
+  func toolReviewAlert(_ tool: String, _ arguments: String) -> NSAlert {
     let alert = NSAlert()
-    alert.messageText = ["write_file", "patch_file"].contains(tool) ? "允许修改这个文件？" : "允许执行这条命令？"
-    alert.informativeText = "项目：\(runWorkspace)\n授权仅适用于本次调用。"
-    let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 620, height: 220))
-    let text = NSTextView(frame: scroll.bounds)
+    let fileChange = ["write_file", "patch_file"].contains(tool)
+    let values = try? JSONSerialization.jsonObject(with: Data(arguments.utf8)) as? [String: Any]
+    let command = values?.count == 1 ? values?["command"] as? String : nil
+    alert.messageText = fileChange ? "允许修改这个文件？" : "允许执行这条命令？"
+    alert.informativeText = fileChange ? "本次调用可能修改项目文件。" : "本次调用可能读取或写入项目文件，并启动本地进程。"
+    let stack = NSStackView()
+    stack.orientation = .vertical
+    stack.alignment = .leading
+    stack.spacing = 10
+    stack.frame = NSRect(x: 0, y: 0, width: 540, height: fileChange ? 295 : 350)
+    func label(_ value: String, heading: Bool = false) {
+      let field = NSTextField(wrappingLabelWithString: value)
+      field.font = heading ? .boldSystemFont(ofSize: 13) : .systemFont(ofSize: 13)
+      field.isSelectable = true
+      field.preferredMaxLayoutWidth = 535
+      stack.addArrangedSubview(field)
+    }
+    label("工作目录", heading: true)
+    label(runWorkspace)
+    label(fileChange ? "文件操作参数" : "命令", heading: true)
+    let scroll = NSScrollView()
+    let text = NSTextView()
     text.isEditable = false
     text.isSelectable = true
-    text.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
-    text.string = arguments
+    text.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
+    text.string = command ?? arguments
+    text.textContainerInset = NSSize(width: 6, height: 7)
+    text.isVerticallyResizable = true
+    text.textContainer?.widthTracksTextView = true
     scroll.documentView = text
     scroll.hasVerticalScroller = true
-    alert.accessoryView = scroll
+    scroll.borderType = .bezelBorder
+    stack.addArrangedSubview(scroll)
+    scroll.widthAnchor.constraint(equalToConstant: 535).isActive = true
+    scroll.heightAnchor.constraint(equalToConstant: 130).isActive = true
+    label("授权仅用于本次调用及当前参数。")
+    if !fileChange { label("停止进程后，已写入的文件会保留。") }
+    label("等待审批 · 未开始执行", heading: true)
+    alert.accessoryView = stack
     alert.addButton(withTitle: "仅允许这一次")
     alert.addButton(withTitle: "拒绝")
     alert.buttons[0].keyEquivalent = ""
     alert.window.defaultButtonCell = nil
     alert.buttons[0].setAccessibilityIdentifier("approval.allowOnce")
     alert.buttons[1].setAccessibilityIdentifier("approval.deny")
-    let allowed = alert.runModal() == .alertFirstButtonReturn
-    grants.append(GrantRecord(chat: runChat, tool: tool, arguments: arguments, allowed: allowed))
-    return allowed ? 1 : 0
+    return alert
   }
   func renameChat(_ chat: Chat) {
     guard !busy, let h = handle else { return }
@@ -811,19 +907,26 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
     panel.canChooseDirectories = false
     panel.allowsMultipleSelection = false
     guard panel.runModal() == .OK, let url = panel.url else { return }
+    previewConfigurationFile(url)
+  }
+
+  func previewConfigurationFile(_ url: URL) {
+    resetImportReview()
+    configImportFilename = url.lastPathComponent
+    settingsSection = "导入配置"
     do {
       let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
       guard let bytes = attributes[.size] as? NSNumber, bytes.intValue <= 1_048_576 else {
-        error = "配置文件最多 1 MiB。"
+        configImportIssue = "配置文件最多 1 MiB。"
         return
       }
       let data = try Data(contentsOf: url)
       guard data.count <= 1_048_576, let source = String(data: data, encoding: .utf8) else {
-        error = "请选择有效 UTF-8 静态 JSON／YAML 配置。"
+        configImportIssue = "请选择有效 UTF-8 静态 JSON／YAML 配置。"
         return
       }
-      previewConfiguration(source)
-    } catch { self.error = error.localizedDescription }
+      previewConfiguration(source, reviewFirst: true)
+    } catch { configImportIssue = error.localizedDescription }
   }
 
   func testConnection(profile: String? = nil) {
@@ -899,7 +1002,7 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
 
   @discardableResult
   func openChat(_ id: String, sequence: Int? = nil) -> Bool {
-    guard !busy, !creatingChat, !switchingModel, !workspacePlanning, !workspaceSaving,
+    guard !busy, !creatingChat, !switchingModel, !workspaceTransitioning,
       !attachmentInteraction else { return false }
     guard chats.contains(where: { $0.id == id }) else {
       error = "找不到这段聊天，请刷新列表后重试。原有来源记录仍保留。"
@@ -910,7 +1013,6 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
     let sameChat = selected == id
     conversationPage = "chat"
     jumpToMessage = sequence
-    searchVisible = false
     error = ""
     route = "chat"
     selected = id
@@ -938,7 +1040,6 @@ private struct NativeHooksReference: @unchecked Sendable { let value: dc_hooks }
     if new != nil { route = "chat" }
     draft = new.flatMap { drafts[$0] } ?? ""
     error = ""
-    changes = []
     messages = []
     receiptRows = []
     receiptMore = false

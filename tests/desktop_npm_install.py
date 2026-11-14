@@ -17,10 +17,10 @@ with tempfile.TemporaryDirectory(prefix='dunlin-npm-') as tmp:
  assert req('catalog.npm.install',**source)['error']=='dsh_environment_not_ready'
  ok('extensions.assets',path=str(pathlib.Path(sys.argv[2]).resolve()));ok('compat.enable',node='/opt/homebrew/bin/node')
  for bad in [dict(source,version='../latest'),dict(source,repository='https://example.invalid/unknown')]:assert req('catalog.npm.install',**bad)['error']=='npm_package_or_version_unsupported'
- old=ok('catalog.npm.install',**dict(source,version='0.2.3'));assert any(v['version']=='0.2.3+dunlin.2' for v in old[0]['versions'])
- rows=ok('catalog.npm.install',**source);row=next(r for r in rows if r['package']=='dsh-catppuccin');assert not row['enabled'];ref={k:row[k] for k in ['source','package','version']};ref['version']='0.2.6+dunlin.2'
+ old=ok('catalog.npm.install',**dict(source,version='0.2.3'));assert any(v['version']=='0.2.3+dunlin.3' for v in old[0]['versions'])
+ rows=ok('catalog.npm.install',**source);row=next(r for r in rows if r['package']=='dsh-catppuccin');assert not row['enabled'];ref={k:row[k] for k in ['source','package','version']};ref['version']='0.2.6+dunlin.3'
  assert len(row['versions'])==2
- ok('extensions.bind',**dict(ref,version='0.2.3+dunlin.2'),enabled=True,acceptHostPermissions=True)
+ ok('extensions.bind',**dict(ref,version='0.2.3+dunlin.3'),enabled=True,acceptHostPermissions=True)
  ok('extensions.bind',**ref,enabled=True,acceptHostPermissions=True)
  route=dict(source=ref['source'],package=ref['package'],command='route:/catppuccin/state')
  assert ok('extensions.command',**route,arguments={'method':'PUT','body':{'flavor':'latte'}})['data']['status']==200

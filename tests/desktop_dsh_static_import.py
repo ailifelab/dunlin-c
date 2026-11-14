@@ -32,14 +32,15 @@ defaultModel: local/qwen-fixture
 '''
  plan=ok('config.preview',source=source);assert ok('config.list')==original
  p=plan['providers'][0];m=plan['models'][0];assert p['routeID']=='local' and p['name']=='本机服务' and p['protocolName']=='chat' and p['keyEnvironment']=='OWN_FIXTURE_MODEL_KEY' and 'credentialID' not in p
+ assert plan['sourceProviders']=={p['id']:{'path':'$.providers.local','api':'openai-completions'}}
  assert m['providerID']==p['id'] and m['contextLimit']==32768 and m['advertisedOutputLimit']==8192 and m['maxOutput']==4096 and m['reasoningSupported'] is True and m['inputModalities']==['text','image'] and '尚未联调' in m['contextSource']
  assert set(['default_model_not_replaced','credential_value_omitted','pricing_not_imported'])<=set(plan['warnings']);assert 'FIXTURE_VALUE_MUST_NOT_BE_SAVED' not in json.dumps(plan)
  saved=ok('config.apply',plan=plan['plan'],confirmed=True);assert len(saved['models'])==1
- again=ok('config.preview',source=source);assert again['providers'][0]['routeID'].startswith('local-imported-') and again['providers'][0]['id']!=p['id'];assert 'provider_alias_renamed' in again['warnings'];saved=ok('config.apply',plan=again['plan'],confirmed=True)
+ again=ok('config.preview',source=source);assert again['providers'][0]['routeID'].startswith('local-imported-') and again['providers'][0]['id']!=p['id'];assert again['sourceProviders'][again['providers'][0]['id']]['path']=='$.providers.local';assert 'provider_alias_renamed' in again['warnings'];saved=ok('config.apply',plan=again['plan'],confirmed=True)
  print('PASS data-only YAML DSH provider/model field mapping, capability declaration labels, explicit no-default-replacement warnings and fresh aliases/identities')
  provider=dict(baseURL='https://example.com/v1',api='openai-responses',models=[dict(id='model',contextWindow=8192,maxTokens=2048,input=['text'])])
  wrapped=[dict(id='ui-unrelated',disabled=False,config=dict(arbitrary='ignored without execution')),dict(id='llm-pi-ai',config=dict(providers=dict(remote=provider)))]
- plan=ok('config.preview',source=json.dumps(wrapped));assert plan['providers'][0]['protocolName']=='responses' and 'plugin_declaration_not_installed' in plan['warnings'];assert plan['models'][0]['maxOutput']==2048
+ plan=ok('config.preview',source=json.dumps(wrapped));assert plan['providers'][0]['protocolName']=='responses' and 'plugin_declaration_not_installed' in plan['warnings'];assert plan['models'][0]['maxOutput']==2048;assert plan['sourceProviders'][plan['providers'][0]['id']]=={'path':'$[1].config.providers.remote','api':'openai-responses'}
  bad_sources=[
   (dict(providers=dict(x=dict(provider,modelOverrides={}))), 'explicit_models_required'),
   (dict(providers=dict(x=dict(api='openai-completions',baseURL='https://example.com/v1'))), 'explicit_models_required'),

@@ -1,0 +1,25 @@
+// Real five-package owner, real C admission and Node transports. All negatives
+// must fail without poisoning another page/package or mutating test workspace.
+import fs from 'node:fs/promises';import path from 'node:path';import {spawn} from 'node:child_process';import readline from 'node:readline';import {createHash} from 'node:crypto';import assert from 'node:assert/strict';
+const child=spawn(path.resolve('build/v51/current-core/python-asan'),['tests/dsh_workbench_owner.py',path.resolve(process.env.DUNLIN_WORKBENCH_LIBRARY),path.resolve(process.env.DUNLIN_WORKBENCH_ASSETS),'reports/v51-current/real-dsh-published-inputs.json'],{stdio:['pipe','pipe','pipe'],env:{...process.env,DUNLIN_WORKBENCH_NATIVE_AGENTS:'1',DUNLIN_WORKBENCH_PROJECTION:'1'}});let stderr='';child.stderr.on('data',x=>stderr+=x);const reader=readline.createInterface({input:child.stdout});const init=await new Promise((resolve,reject)=>{reader.once('line',x=>resolve(JSON.parse(x)));child.once('exit',code=>reject(Error('owner exited '+code+' '+stderr)))});
+const dir=process.env.DUNLIN_WORKBENCH_REPORT;await fs.mkdir(dir,{recursive:true});
+async function call(route,data){const r=await(await fetch('http://127.0.0.1:'+init.port+route,{method:'POST',headers:{'X-Dunlin-Owner':init.token},body:JSON.stringify(data)})).json();if(!r.ok)throw Object.assign(Error(r.error),{failure:r.failure});return r.value}
+const command=(plugin,command,args)=>call('/invoke',{plugin,command,args});const image=(method,args)=>command('dsh-image-gen',method,args);
+const checks=[];
+async function http(method,args){let r=await command('dsh-better-sidebar','http',{url:'/sidebar/api/'+method,method:'POST',body:args});if(r.pendingHandle){const id=r.pendingHandle;try{for(let i=0;i<300;i++){const next=await command('dsh-better-sidebar','http.pending',{id});if(next.ready){r=next.response;break}await new Promise(resolve=>setTimeout(resolve,50))}}finally{await command('dsh-better-sidebar','http.pending',{id,release:true})}}return r}
+async function api(method,args){const r=await http(method,args);assert.equal(r.status,200,JSON.stringify(r));assert.equal(r.body.ok,true,JSON.stringify(r));return r.body.value}
+try{
+ const prompt=(id,content,mode='queue')=>command('dsh-project-manager','native.session.prompt',{id,content,mode});const text=value=>[{type:'text',text:value}];
+ const made=await command('dsh-project-manager','native.session.create',{});const id=made.value.id;
+ assert.equal((await call('/native-agent-jobs',{})).modelRequests,1);
+ for(const [name,target,content,mode]of [
+  ['missing','missing-chat',text('should refuse'),'queue'],['empty',id,text('  '),'queue'],['bytes',id,text('语'.repeat(6000)),'queue'],['attachment',id,[{type:'image',source:{id:'forged'}}],'queue'],['mode',id,text('should refuse'),'steer']]){
+  await assert.rejects(prompt(target,content,mode),undefined,name);const state=await call('/native-agent-jobs',{});assert.equal(state.pending.length,0,name);assert.equal(state.modelRequests,1,name);checks.push({case:'refuse-'+name,status:'pass'});
+ }
+ await command('dsh-project-manager','native.session.archive',{id});await assert.rejects(prompt(id,text('archived refusal')));assert.equal((await call('/native-agent-jobs',{})).pending.length,0);await command('dsh-project-manager','native.session.unarchive',{id});
+ const accepted=await prompt(id,text('Owned native prompt Unicode 甲'));assert.equal(accepted.value.accepted,true);assert.ok(accepted.value.messageId);assert.equal((await call('/native-agent-jobs',{})).pending.length,1);
+ const executed=await call('/native-agents-run',{});assert.equal(executed.runs.length,1);assert.equal(executed.runs[0].run.status,'completed');const messages=await command('dsh-project-manager','native.session.read',{id});assert.ok(messages.value.some(m=>m.role==='user'&&m.content==='Owned native prompt Unicode 甲'));assert.equal((await call('/native-agents-run',{})).runs.length,0,'completed prompt replayed');checks.push({case:'committed-C-prompt-and-no-replay',status:'pass'});
+ const noModel=(await command('dsh-project-manager','native.session.create',{})).value.id;await call('/native-fixture-model-clear',{chat:noModel});await assert.rejects(prompt(noModel,text('no model refusal')));assert.equal((await call('/native-agent-jobs',{})).pending.length,0);assert.equal((await call('/native-agent-jobs',{})).modelRequests,2);
+ await call('/native-agent-audit',{deny:'effect-receipt'});await assert.rejects(prompt(id,text('audit denied prompt')));const denied=await call('/native-agent-jobs',{});assert.equal(denied.pending.length,0);assert.equal(denied.modelRequests,2);checks.push({case:'subaction-receipt-failure-prevents-C-execution',status:'pass'});await call('/native-agent-audit',{});
+ console.log('PASS explicit native project text admission/invalid target, empty, byte bound, attachment, mode, archive, missing model, exact C display, no replay and receipt-failure fence');
+}finally{child.stdin.end('\n');await new Promise(resolve=>child.once('exit',resolve));await fs.writeFile(path.join(dir,'checks.json'),JSON.stringify(checks,null,2));await fs.writeFile(path.join(dir,'owner-stderr.log'),stderr)}

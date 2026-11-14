@@ -24,15 +24,18 @@ struct ModelSwitchReview: Decodable, Identifiable {
   let reason: String?
   let contextKnown: Bool
   let contextSelected: Int?
+  let historyEstimateBytes: Int?
+  let inputBudget: Int?
   let contextFit: String
 }
 struct ModelSwitchView: View {
   @EnvironmentObject var store: WorkspaceStore
   @Environment(\.openSettings) private var openSettings
   let review: ModelSwitchReview
+  private var needsCompression: Bool { review.contextFit == "requires_compaction" }
   var body: some View {
     VStack(alignment: .leading, spacing: 26) {
-      Text("切换模型，继续这段聊天").font(.system(size: 23, weight: .semibold))
+      Text(needsCompression ? "目标模型需要先整理上下文" : "切换模型，继续这段聊天").font(.title.weight(.semibold))
       Text("聊天记录和已执行操作将完整保留。").font(.callout).foregroundStyle(.secondary)
       VStack(alignment: .leading, spacing: 0) {
         modelRow(review.currentName, detail: "当前模型")
@@ -42,10 +45,10 @@ struct ModelSwitchView: View {
         Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
       VStack(alignment: .leading, spacing: 14) {
         Label(
-          review.canSwitch ? "上下文保留检查通过" : "需要确认模型能力",
-          systemImage: review.canSwitch ? "checkmark.circle" : "exclamationmark.triangle"
+          needsCompression ? "文字历史超过目标输入预算" : review.canSwitch ? "上下文保留检查通过" : "需要确认模型能力",
+          systemImage: review.canSwitch && !needsCompression ? "checkmark.circle" : "exclamationmark.triangle"
         )
-        .font(.system(size: 17, weight: .semibold))
+        .font(.title3.weight(.semibold))
         Text(
           "将保留 \(review.messageCount) 条消息、\(review.fileReceipts) 次文件操作回执与 \(review.toolResults) 次工具结果。"
         )
@@ -63,18 +66,21 @@ struct ModelSwitchView: View {
             Text("另有一张待发图片；切换后仍会保留。发送新图片需要可用的图片模型和图片传递方式。")
           }
         }
-        if review.canSwitch {
-          Text(
-            review.contextKnown
-              ? "目标上下文预算 \(review.contextSelected ?? 0)；发送前会按配置检查并压缩上下文。"
-              : "目标模型的窗口尚未确认，可在模型设置中补充。历史记录不会清空。")
+        if review.contextKnown, let estimate = review.historyEstimateBytes, let budget = review.inputBudget {
+          Text("已保存的文字和工具记录约占 \(estimate.formatted()) 个 UTF-8 字节。目标模型可用输入预算为 \(budget.formatted())。")
+          Text(needsCompression
+               ? "按本地估算，下一次发送前需要整理历史或调高预算。原文仍可回看。"
+               : "发送前会连同系统提示、工具和新输入再次检查。")
+          Text("本地使用保守字节估算，实际 token 用量由服务商返回。").font(.caption)
         } else {
-          Text(modelSwitchExplanation(review.reason))
+          Text("目标模型的窗口尚未确认，可在模型设置中补充。")
         }
-      }.font(.system(size: 14)).foregroundStyle(review.canSwitch ? Color.accentColor : Color.orange)
+        if !review.canSwitch { Text(modelSwitchExplanation(review.reason)) }
+
+      }.font(.body).foregroundStyle(review.canSwitch && !needsCompression ? Color.accentColor : Color.orange)
         .padding(20).frame(maxWidth: .infinity, alignment: .leading)
         .background(
-          (review.canSwitch ? Color.accentColor : Color.orange).opacity(0.07),
+          (review.canSwitch && !needsCompression ? Color.accentColor : Color.orange).opacity(0.07),
           in: RoundedRectangle(cornerRadius: 12))
       Text("切换只影响下一回合；不会重跑历史工具。").font(.callout).foregroundStyle(.secondary)
       if !store.modelSwitchError.isEmpty {
@@ -114,8 +120,8 @@ struct ModelSwitchView: View {
   }
   private func modelRow(_ name: String, detail: String) -> some View {
     VStack(alignment: .leading, spacing: 6) {
-      Text(name).font(.system(size: 16, weight: .medium))
-      Text(detail).font(.system(size: 12)).foregroundStyle(.secondary)
+      Text(name).font(.headline.weight(.medium))
+      Text(detail).font(.callout).foregroundStyle(.secondary)
     }.padding(.vertical, 18).frame(maxWidth: .infinity, alignment: .leading)
   }
 }

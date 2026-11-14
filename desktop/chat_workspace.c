@@ -1,5 +1,6 @@
 #define _XOPEN_SOURCE 700
 #include "chat_workspace.h"
+#include "extensions.h"
 #include "dunlin/content_hash.h"
 #include "dunlin/compact/json.h"
 #include <sys/stat.h>
@@ -139,10 +140,11 @@ static J *review(dc_store *s,J *r,const char **error){
     json_object_object_add(out,"bindingRevision",json_object_get(get(view,"revision")));
     json_object_object_add(out,"projectRevision",json_object_get(get(view,"projectRevision")));
     json_object_object_add(out,"messageCount",json_object_new_int64((int64_t)count));
-    json_object_object_add(out,"canApply",json_object_new_boolean(!active&&!pending));text(out,"reason",active||pending?"active_checkpoint":"");
+    int extension_busy=dc_extensions_chat_busy(s,str(r,"chat"));
+    json_object_object_add(out,"canApply",json_object_new_boolean(!active&&!pending&&!extension_busy));text(out,"reason",extension_busy?"active_extension_request":active||pending?"active_checkpoint":"");
     json_object_put(view);return out;
 }
-J *dc_chat_workspace_request(dc_store *s,J *r){
+static J *request_unlocked(dc_store *s,J *r){
     const char *op=str(r,"op");
     if(op&&!strcmp(op,"chats.workspace.migration")){J *v=dc_workspace_migration_view(s);return reply(v,v?NULL:"workspace_migration_record_unreadable");}
     if(op&&!strcmp(op,"chats.workspace.get")){J *v=dc_chat_workspace_view(s,str(r,"chat"));return reply(v,v?NULL:"chat_not_found_or_binding_unreadable");}
@@ -173,4 +175,12 @@ J *dc_chat_workspace_request(dc_store *s,J *r){
     if(error||!plan){execute(s,"ROLLBACK");json_object_put(plan);return reply(NULL,error?error:"storage_error");}
     if(!execute(s,"COMMIT")){execute(s,"ROLLBACK");json_object_put(plan);return reply(NULL,"storage_error");}
     return reply(plan,NULL);
+}
+
+J *dc_chat_workspace_request(dc_store *s,J *r){
+    if(s&&s->lock<0)return request_unlocked(s,r);
+    void *scope=dc_extensions_scope_enter(s);
+    J *out=scope?request_unlocked(s,r):reply(NULL,"extension_state_unavailable");
+    if(scope)dc_extensions_scope_leave(scope);
+    return out;
 }

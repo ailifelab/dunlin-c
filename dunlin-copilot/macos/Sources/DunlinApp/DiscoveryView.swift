@@ -19,13 +19,15 @@ struct DiscoveryView:View {
   @State private var url=""
   @State private var query=""
   @State private var installing:CommunityEntry?
+  @State private var preview:CommunityEntry?
   @State private var version=""
+  @State private var versionError=""
   @State private var availableVersions:[String]=[]
   @State private var cancellation:Callbacks?
   var body:some View {
     GroupBox("社区插件索引") {
       VStack(alignment:.leading,spacing:14) {
-        Text("同步 DSHSeek 第三方索引或 Dunlin 在 GitHub 维护的常用清单。同步仅更新本地列表。维护清单内的插件可选择 npm 版本下载安装；完整兼容性仍待逐项验证。").font(.callout).foregroundStyle(.secondary)
+        Text("同步 DSHSeek 第三方索引或 Dunlin 在 GitHub 维护的常用清单。同步仅更新本地列表。可安装有对应 npm 发布包的社区插件。未验证的版本请谨慎安装，下载后默认停用。").font(.callout).foregroundStyle(.secondary)
         HStack {
           Text("plugin-index-sources.json").font(.system(.caption,design:.monospaced))
           Spacer()
@@ -43,11 +45,13 @@ struct DiscoveryView:View {
                 VStack(alignment:.leading,spacing:5) {
                   Text(entry.title).font(.headline)
                   Text(entry.description).font(.caption).foregroundStyle(.secondary)
-                  Label(entry.compatibilityReason ?? "兼容性待验证，安装后需单独启用测试",systemImage:"exclamationmark.circle").font(.caption).foregroundStyle(.orange)
+                  if let reason=entry.compatibilityReason,!reason.isEmpty { Text("来源说明："+reason).font(.callout).foregroundStyle(.secondary) }
+                  Label("未验证的版本请谨慎安装",systemImage:"exclamationmark.circle").font(.caption).foregroundStyle(.orange)
                 }
                 Spacer()
                 if let link=URL(string:entry.url),link.scheme=="https" {Link("查看项目",destination:link)}
-                Button("下载安装…"){version="";availableVersions=[];installing=entry;store.catalogRequest(["op":"catalog.npm.versions","repository":entry.url],as:[String].self){reply in availableVersions=reply.data ?? [];version=availableVersions.first ?? "";if !reply.ok {error=reply.error ?? "无法读取版本"}}}.disabled(busy || !canInstall).help("从 npm 下载指定版本并验证摘要；启用后才能测试运行兼容性。")
+                Button("详情…"){preview=entry}
+                Button("下载安装…"){chooseVersion(entry)}.disabled(busy || !canInstall).help("从 npm 下载指定版本并验证摘要；启用后才能测试运行兼容性。")
               }.padding(.vertical,8)
               Divider()
             }
@@ -61,7 +65,7 @@ struct DiscoveryView:View {
         }
       }.padding(12)
     }.onAppear(perform:reload).onDisappear{cancellation?.cancel()}
-      .onChange(of:store.identityEpoch){_,_ in cancellation?.cancel();busy=false;sources=[];error="";installing=nil;availableVersions=[];version="";reload()}
+      .onChange(of:store.identityEpoch){_,_ in cancellation?.cancel();busy=false;sources=[];error="";preview=nil;installing=nil;availableVersions=[];version="";reload()}
       .sheet(isPresented:$adding) {
         VStack(alignment:.leading,spacing:16) {
           Text("添加社区索引").font(.title2.bold())
@@ -70,19 +74,47 @@ struct DiscoveryView:View {
           HStack {Spacer();Button("取消"){adding=false};Button("添加"){adding=false;request(["op":"catalog.community.add","id":UUID().uuidString,"title":title,"url":url]);title="";url=""}.disabled(title.isEmpty || !url.hasPrefix("https://"))}
         }.textFieldStyle(.roundedBorder).padding(24).frame(width:520)
       }
+      .sheet(item:$preview) { entry in
+        VStack(alignment:.leading,spacing:18) {
+          Text(entry.title).font(.title2.weight(.semibold))
+          if !entry.description.isEmpty {Text(entry.description)}
+          LabeledContent("npm 包名",value:entry.name)
+          if let link=URL(string:entry.url),link.scheme=="https" {LabeledContent("来源项目"){Link(link.absoluteString,destination:link)}}
+          if let reason=entry.compatibilityReason,!reason.isEmpty {Text(reason).foregroundStyle(.secondary)}
+          Label(canInstall ? "未验证的版本请谨慎安装，下载后默认停用。" : "当前兼容环境尚未就绪。",systemImage:"info.circle").font(.callout)
+          HStack{Spacer();Button("完成"){preview=nil}.keyboardShortcut(.cancelAction)}
+        }.padding(24).frame(width:520)
+      }
       .sheet(item:$installing){entry in
         VStack(alignment:.leading,spacing:16){
           Text("下载 \(entry.title)").font(.title2.bold())
-          Text("选择明确的 npm 版本。系统验证下载摘要并保存到本地，不执行安装脚本；插件兼容性需要启用后测试，可能因缺少服务而被停用。").font(.callout).foregroundStyle(.secondary)
+          Text("未验证的版本请谨慎安装。系统验证下载摘要并保存到本地，不执行安装脚本；插件兼容性需要启用后测试，可能因缺少服务而被停用。").font(.callout).foregroundStyle(.secondary)
           Picker("已发布版本",selection:$version){Text("选择版本").tag("");ForEach(availableVersions,id:\.self){Text($0).tag($0)}}
-          if availableVersions.isEmpty {Text("正在读取版本，或该项目尚未支持下载安装。").foregroundStyle(.secondary).font(.caption)}
-          HStack{Spacer();Button("取消"){installing=nil};Button("下载安装"){install(entry);installing=nil}.disabled(version.isEmpty)}
+          if availableVersions.isEmpty {Text(versionError.isEmpty ? "正在读取 npm 版本…" : versionError).foregroundStyle(.secondary).font(.caption)}
+          HStack{Spacer();Button("取消"){installing=nil};Button("下载安装"){install(entry);installing=nil}.disabled(version.isEmpty || !canInstall || busy)}
         }.padding(24).frame(width:520)
       }
   }
+  private func chooseVersion(_ entry:CommunityEntry) {
+    version="";versionError="";availableVersions=[];installing=entry
+    store.catalogRequest(["op":"catalog.npm.versions","repository":entry.url,"package":entry.name],as:[String].self){reply in
+      guard installing?.id==entry.id else{return}
+      availableVersions=reply.data ?? [];version=availableVersions.first ?? ""
+      if !reply.ok {versionError=packageError(reply.error)}
+      else if availableVersions.isEmpty {versionError="没有可安装的发布版本。"}
+    }
+  }
+  private func packageError(_ code:String?)->String {
+    switch code {
+    case "npm_repository_mismatch": return "npm 发布者登记的仓库与索引不同，无法确认包的身份。"
+    case "npm_package_or_version_unsupported": return "此索引项没有有效的 npm 包名。"
+    case "npm_version_not_found": return "npm 没有发布这个包或版本。"
+    default: return "无法读取发布信息：\(code ?? "未知错误")"
+    }
+  }
   private func install(_ entry:CommunityEntry){
     busy=true;error="";let box=Callbacks();cancellation=box
-    store.catalogRequest(["op":"catalog.npm.install","repository":entry.url,"version":version],as:[ExtensionRow].self,cancel:box){reply in
+    store.catalogRequest(["op":"catalog.npm.install","repository":entry.url,"package":entry.name,"version":version],as:[ExtensionRow].self,cancel:box){reply in
       busy=false;cancellation=nil
       error=reply.ok ? "已下载，默认停用。请到设置中的插件页面选择版本并启用。":"安装未完成：\(reply.error ?? "未知错误")"
     }

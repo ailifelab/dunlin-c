@@ -4,6 +4,8 @@ import SwiftUI
 struct SettingsView: View {
   @EnvironmentObject var store: WorkspaceStore
   @State private var editing: ModelProfile?
+  @State private var contextStrategies = false
+  @State private var catalogTitle:String?
   @State private var selectedModel: String?
   @State private var modelPage = "budget"
   @State private var editingProvider: ProviderProfile?
@@ -19,11 +21,11 @@ struct SettingsView: View {
   var body: some View {
     HStack(spacing: 0) {
       VStack(alignment: .leading, spacing: 20) {
-        Text("设置").font(.system(size: 22, weight: .semibold)).padding(.horizontal, 30).padding(
+        Text("设置").font(.title.weight(.semibold)).padding(.horizontal, 30).padding(
           .top, 24)
         ScrollViewReader { proxy in
           ScrollView {
-            VStack(spacing:7) {
+            VStack(spacing:4) {
               ForEach(sections,id:\.0) {title,_ in settingsSidebarButton(title,id:title)}
               ForEach(store.pluginPages.filter {$0.contribution.kind == "settings"}) {page in
                 settingsSidebarButton(page.contribution.title ?? page.package,id:"plugin:"+page.id)
@@ -40,29 +42,25 @@ struct SettingsView: View {
         Text("Dunlin Copilot").font(.caption).foregroundStyle(.secondary).padding(24)
       }.frame(width: 260).background {SidebarBackdrop().ignoresSafeArea()}
       ScrollView {
-        VStack(alignment: .leading, spacing: 28) {
-          VStack(alignment:.leading,spacing:14) {
-            Text(contentTitle).font(.system(size:24,weight:.semibold))
-            Text(subtitle).foregroundStyle(.secondary).font(.system(size:13))
+        VStack(alignment: .leading, spacing: 20) {
+          VStack(alignment:.leading,spacing:8) {
+            Text(contentTitle).font(.title.weight(.semibold))
+            Text(subtitle).foregroundStyle(.secondary).font(.body)
           }
           Divider()
           content.id(store.identityEpoch).padding(.top,4).disabled(
-            (store.busy && store.settingsSection != "授权记录") || store.creatingChat || store.switchingModel || store.workspaceTransitioning
+            (store.busy && store.settingsSection != "授权记录" && store.settingsSection != "身份与家庭") || store.creatingChat || store.switchingModel || store.workspaceTransitioning
           )
           Spacer(minLength: 20)
-        }.padding(.leading,55).padding(.trailing,77).padding(.top,16).padding(.bottom,36).frame(maxWidth: .infinity, alignment: .topLeading)
-      }.frame(maxWidth: .infinity, maxHeight: .infinity).background(
-        store.themeBackground).foregroundStyle(store.themeText)
-    }.frame(minWidth: 1040, idealWidth: 1360, minHeight: 720, idealHeight: 830)
+        }.padding(.horizontal,32).padding(.top,24).padding(.bottom,36).frame(maxWidth: .infinity, alignment: .topLeading)
+      }.frame(maxWidth: .infinity, maxHeight: .infinity).background {PluginAppearanceBackdrop(conversation:false)}.foregroundStyle(store.themeText)
+    }.frame(minWidth: 940, idealWidth: 1360, minHeight: 720, idealHeight: 830)
     .preferredColorScheme(
       store.themeScheme
     )
     .tint(store.themeTint)
     .environment(\.chatHTMLPalette,store.themeHTMLPalette)
-    .sheet(item: $store.configImportPlan) { plan in
-      ConfigImportView(plan: plan).environmentObject(store)
-    }
-    .onChange(of: store.settingsSection) { _,value in if value != "插件" {store.settingsPluginLogs=false};store.saveSettings() }
+    .onChange(of: store.settingsSection) { _,value in contextStrategies=false;if value != "记忆与知识库" {store.knowledgePage = .overview};if value != "插件" {store.settingsPluginLogs=false};store.saveSettings() }
     .onChange(of: store.theme) { _, _ in store.saveSettings() }
     .onChange(of: store.showReasoning) { _, _ in store.saveSettings() }
     .onChange(of: store.generalPreferences) { _, _ in store.saveSettings() }
@@ -81,14 +79,16 @@ struct SettingsView: View {
   }
   private func settingsSidebarButton(_ title:String,id:String)->some View {
     Button {store.settingsSection=id} label: {
-      Text(title).font(.system(size:13,weight:store.settingsSection==id ? .semibold:.regular))
+      Text(title).font(.body.weight(store.settingsSection==id ? .semibold:.regular))
         .foregroundStyle(store.themeText).frame(maxWidth:.infinity,alignment:.leading)
-        .padding(.horizontal,23).frame(height:33)
+        .padding(.horizontal,23).padding(.vertical,5).frame(minHeight:28)
         .background(store.settingsSection==id ? store.themeTint.opacity(0.16):Color.clear,in:RoundedRectangle(cornerRadius:8))
         .contentShape(Rectangle())
     }.buttonStyle(.plain).id(id).accessibilityAddTraits(store.settingsSection==id ? .isSelected:[])
   }
   private var contentTitle: String {
+    if store.settingsSection == "导入配置", store.configImportPlan != nil { return "确认导入" }
+    if store.settingsSection == "上下文压缩",contextStrategies {return "压缩策略"}
     if store.settingsSection == "插件",store.settingsPluginLogs {return "错误日志"}
     if store.settingsSection == "模型", let editing {
       return modelPage == "advanced" ? "模型高级设置" : editing.name
@@ -97,6 +97,9 @@ struct SettingsView: View {
       return store.providers.contains(where: { $0.id == editingProvider.id }) ? "编辑服务商" : "添加服务商"
     }
     if store.settingsSection.hasPrefix("plugin:"),let page=store.pluginPages.first(where:{"plugin:"+$0.id == store.settingsSection}) {return page.contribution.title ?? page.package}
+    if store.settingsSection == "记忆与知识库" {return store.knowledgePage.title}
+    if store.settingsSection == "商店与来源",let catalogTitle{return catalogTitle}
+    if store.settingsSection == "外观" { return "外观与皮肤" }
     return store.settingsSection
   }
   private var subtitle: String {
@@ -111,9 +114,30 @@ struct SettingsView: View {
       return "配置用于聊天的模型，切换时保留当前聊天。"
     case "DSH 兼容环境": return "按需开启，检测并准备独立的插件运行环境。"
     case "语音与视频": return "选择设备、AI 服务与通话记录方式。"
-    case "授权记录": return "查看授权范围、持续时间和撤销结果。"
+    case "授权记录": return (store.currentIdentity?.name ?? "当前身份") + " · 只显示你在 Dunlin C 对话中确认的授权。"
     case "通用": return "为日常聊天设置默认行为。"
     case "服务商": return editingProvider == nil ? "管理模型连接，密钥保存在系统钥匙串。" : "连接信息与模型参数分开管理。"
+    case "外观": return "选择整体外观；第三方主题可以先预览，再决定应用。"
+    case "身份与家庭": return "每个身份有独立聊天、偏好与授权。"
+    case "上下文压缩": return contextStrategies ? "选择适合当前平台的策略，查看依赖与信息损失。" : "控制达到请求预算时如何整理历史。"
+    case "导入配置":
+      if store.configImportPlan != nil {
+        return store.configImportFilename + " · 已通过静态检查，尚未保存或测试连接。"
+      }
+      return "从 DSH 的静态 JSON / YAML 配置生成 Dunlin C 配置草案。"
+    case "聊天检索": return "为当前身份建立本地索引，方便查找旧对话。"
+    case "Skills": return "为当前身份管理已下载的 Skills 与默认版本。"
+    case "商店与来源":
+      switch catalogTitle {
+      case "商店": return "发现 Skills、工具插件和皮肤，安装前查看来源与权限。"
+      case "插件商城": return "选择工具并查看兼容条件。"
+      case "商店来源": return "管理 Skills、插件和皮肤的目录地址与信任信息。"
+      case "皮肤": return "浏览当前来源提供的桌面外观。"
+      default: return "版本、来源与运行要求。"
+      }
+    case "记忆与知识库": return store.knowledgePage == .documents ? "为当前身份添加可检索资料，保持来源范围与版本清晰。" : (store.currentIdentity?.name ?? "当前身份") + " · 可查看、纠正或忘记使用过的个人信息。"
+    case "权限与数据": return "每一份上下文都知道来自哪里。"
+    case "运行轨迹": return "设置模型运行记录的保留方式。"
     default: return "管理当前客户端的设置。"
     }
   }
@@ -128,10 +152,12 @@ struct SettingsView: View {
       else {ExtensionsView(onLogs:{store.settingsPluginLogs=true})}
     case "DSH 兼容环境": CompatibilityView()
     case "Skills": SkillsView(scope: "global", scopeID: "")
-    case "上下文压缩": ContextSettingsView()
+    case "上下文压缩":
+      if contextStrategies {ContextStrategiesView(goBack:{contextStrategies=false})}
+      else {ContextSettingsView(openStrategies:{contextStrategies=true})}
     case "运行轨迹": TrajectorySettingsView()
     case "商店与来源":
-      CatalogView()
+      CatalogView(onTitleChange:{catalogTitle=$0})
     case "模型":
       if let editing {
         ModelEditor(profile: editing, page: $modelPage) { self.editing = nil }.id(editing.id)
@@ -142,20 +168,50 @@ struct SettingsView: View {
     case "通用":
       GeneralSettingsView()
     case "外观":
-      Form {
-        Section("主题") {
-          appearanceRow
-          Text("系统材质与正文保持清楚的层级。").foregroundStyle(.secondary)
-          PluginThemeSettings()
-        }
-      }.formStyle(.grouped)
+      AppearanceSettingsView()
     case "导入配置":
-      VStack(alignment: .leading, spacing: 18) {
-        Text("从静态 JSON／YAML 预览服务商、模型与字段映射。密钥值不会从文件复制，也不会执行脚本或动态 include。").foregroundStyle(
-          .secondary)
-        Button("选择配置文件…", action: store.importModel).buttonStyle(.borderedProminent)
-          .accessibilityIdentifier("config.import")
-        Text(store.connectionStatus).font(.callout)
+      if let plan = store.configImportPlan {
+        ConfigImportView(plan: plan).id(plan.id)
+      } else {
+        VStack(alignment:.leading,spacing:24) {
+          HStack(spacing:14) {
+            Image(systemName:"doc.text").font(.title2)
+            VStack(alignment:.leading,spacing:5){
+              Text(store.configImportFilename.isEmpty ? "选择静态配置文件" : store.configImportFilename).font(.headline)
+              Text("JSON / YAML · 仅预览本地配置").foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button(store.configImportFilename.isEmpty ? "选择配置文件…" : "更换文件…",action:store.importModel)
+              .accessibilityIdentifier("config.import")
+          }.padding(20).background(store.themeSurface,in:RoundedRectangle(cornerRadius:10))
+          if let review=store.configImportReview {
+            Text("本次将导入").font(.headline)
+            VStack(alignment:.leading,spacing:14) {
+              LabeledContent("服务商",value:"\(review.providers.count) 个 · "+review.providers.map(\.name).joined(separator:"、"))
+              Divider()
+              LabeledContent("模型",value:"\(review.models.count) 个 · "+review.models.map(\.name).joined(separator:"、"))
+              Divider()
+              LabeledContent("默认模型",value:"保持当前选择")
+            }.padding(20).background(store.themeSurface,in:RoundedRectangle(cornerRadius:10))
+            if !review.warnings.isEmpty {
+              VStack(alignment:.leading,spacing:8) {
+                Label("导入说明",systemImage:"info.circle").font(.headline)
+                ForEach(Array(review.warnings.enumerated()),id:\.offset){_,warning in Text(configImportWarning(warning))}
+              }.padding(18).frame(maxWidth:.infinity,alignment:.leading).background(Color.orange.opacity(0.09),in:RoundedRectangle(cornerRadius:10))
+            }
+            HStack {Spacer();Button("取消",action:store.resetImportReview)
+              Button("检查字段映射"){store.configImportPlan=review}.buttonStyle(.borderedProminent).accessibilityIdentifier("config.import.review")
+            }
+          }
+          if !store.configImportIssue.isEmpty {
+            VStack(alignment:.leading,spacing:8) {
+              Label("需要处理配置",systemImage:"exclamationmark.triangle").font(.headline)
+              Text(store.configImportIssue).textSelection(.enabled)
+            }.padding(18).frame(maxWidth:.infinity,alignment:.leading).background(Color.orange.opacity(0.12),in:RoundedRectangle(cornerRadius:10))
+          } else if store.configImportReview==nil {
+            Text(store.connectionStatus.hasPrefix("已导入") ? store.connectionStatus : "选择文件后可以核对新增的服务商、模型与字段映射。密钥需要在钥匙串中单独配置。").foregroundStyle(.secondary)
+          }
+        }
       }
     case "授权记录": GrantSettings()
     case "权限与数据": DataSettingsView()
@@ -170,22 +226,6 @@ struct SettingsView: View {
       }.formStyle(.grouped)
     }
   }
-  }
-  private var appearanceRow: some View {
-    Picker(
-      "外观",
-      selection: Binding(
-        get: {
-          ["system", "light", "dark"].contains(store.theme)
-            || store.installedThemes.contains(where: { $0.id == store.theme })
-            ? store.theme : "system"
-        }, set: { store.theme = $0 })
-    ) {
-      Text("跟随系统").tag("system")
-      Text("科技白").tag("light")
-      Text("科技黑").tag("dark")
-      ForEach(store.installedThemes) { Text($0.name).tag($0.id) }
-    }.accessibilityIdentifier("settings.theme").onAppear { store.refreshThemes() }
   }
   private var models: some View {
     VStack(alignment: .leading, spacing: 20) {
@@ -243,6 +283,7 @@ struct SettingsView: View {
         Text("默认模型")
         Spacer()
         Picker("默认模型", selection: $store.defaultProfileID) {
+          Text("尚未选择").tag("")
           ForEach(store.profiles) { Text($0.name).tag($0.id) }
         }.labelsHidden().fixedSize()
       }.padding(.vertical, 10)

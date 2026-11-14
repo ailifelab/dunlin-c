@@ -15,6 +15,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <limits.h>
+#include <time.h>
 typedef struct json_object J;
 static J *get(J *o,const char *k){J *v=NULL;if(o)json_object_object_get_ex(o,k,&v);return v;}
 static const char *str(J *o,const char *k){J *v=get(o,k);return json_object_is_type(v,json_type_string)?json_object_get_string(v):NULL;}
@@ -30,13 +31,34 @@ static int verify_assets(const char *root){
  char path[PATH_MAX];if(!asset_path(root,"assets.json",path))return 0;size_t n=0;char *raw=read_file(path,4194304,&n);J *manifest=raw?dunlin_json_parse(raw,n):NULL;free(raw);J *files=get(manifest,"files");int ok=eq(str(manifest,"protocol"),"dunlin.dsh.assets")&&eq(str(manifest,"commit"),"1f81c047fc48fa190a683e469daa699857e9afe8")&&json_object_is_type(files,json_type_array)&&json_object_array_length(files)>10&&json_object_array_length(files)<=16384;
  for(size_t i=0;ok&&i<json_object_array_length(files);i++){J *f=json_object_array_get_idx(files,i);size_t size=0;char *bytes=asset_path(root,str(f,"path"),path)?read_file(path,67108864,&size):NULL;char hash[65];if(bytes)dc_sha256(bytes,size,hash);ok=bytes&&eq(hash,str(f,"sha256"));free(bytes);}json_object_put(manifest);return ok;
 }
-typedef struct{int fd;size_t bytes;EVP_MD_CTX *hash;const dc_hooks *hooks;int percent;} download;
+static uint64_t milliseconds(void){
+ struct timespec now={0};clock_gettime(CLOCK_MONOTONIC,&now);
+ return (uint64_t)now.tv_sec*1000+(uint64_t)now.tv_nsec/1000000;
+}
+typedef struct{int fd;size_t bytes;EVP_MD_CTX *hash;const dc_hooks *hooks;int percent;uint64_t deadline;} download;
 static size_t receive(char *p,size_t a,size_t b,void *ctx){download *d=ctx;if(a&&b>SIZE_MAX/a)return 0;size_t n=a*b;if(n>67108864-d->bytes||stopped(d->hooks))return 0;for(size_t used=0;used<n;){ssize_t k=write(d->fd,p+used,n-used);if(k<0&&errno==EINTR)continue;if(k<=0)return 0;used+=(size_t)k;}if(EVP_DigestUpdate(d->hash,p,n)!=1)return 0;d->bytes+=n;return n;}
-static int progress(void *ctx,curl_off_t total,curl_off_t current,curl_off_t x,curl_off_t y){(void)x;(void)y;download *d=ctx;if(total>0&&current>=0){int percent=(int)((double)current*100.0/(double)total);if(percent!=d->percent){d->percent=percent;if(d->hooks&&d->hooks->event){char text[160];snprintf(text,sizeof text,"{\"received\":%lld,\"total\":%lld}",(long long)current,(long long)total);d->hooks->event(d->hooks->user,"compat.progress",text);}}}return stopped(d->hooks);}
+static int progress(void *ctx,curl_off_t total,curl_off_t current,curl_off_t sent_total,curl_off_t sent){
+ (void)sent_total;(void)sent;
+ download *d=ctx;
+ if(total>0&&current>=0){
+  int percent=(int)((double)current*100.0/(double)total);
+  if(percent!=d->percent){
+   d->percent=percent;
+   if(d->hooks&&d->hooks->event){
+    char text[160];snprintf(text,sizeof text,"{\"received\":%lld,\"total\":%lld}",(long long)current,(long long)total);
+    uint64_t before=milliseconds();
+    d->hooks->event(d->hooks->user,"compat.progress",text);
+    /* The UI may hold this synchronous callback until the user resumes. */
+    d->deadline+=milliseconds()-before;
+   }
+  }
+ }
+ return stopped(d->hooks)||milliseconds()>=d->deadline;
+}
 static int fetch(const char *url,const char *sha,const char *destination,const dc_hooks *hooks){
- int fd=open(destination,O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW|O_CLOEXEC,0600);if(fd<0)return 0;CURL *c=curl_easy_init();EVP_MD_CTX *hash=EVP_MD_CTX_new();int ok=c&&hash&&EVP_DigestInit_ex(hash,EVP_sha256(),NULL)==1;download d={fd,0,hash,hooks,-1};
+ int fd=open(destination,O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW|O_CLOEXEC,0600);if(fd<0)return 0;CURL *c=curl_easy_init();EVP_MD_CTX *hash=EVP_MD_CTX_new();int ok=c&&hash&&EVP_DigestInit_ex(hash,EVP_sha256(),NULL)==1;download d={fd,0,hash,hooks,-1,milliseconds()+300000};
 #define SET(k,v) do{if(ok&&curl_easy_setopt(c,k,v)!=CURLE_OK)ok=0;}while(0)
- SET(CURLOPT_URL,url);SET(CURLOPT_FOLLOWLOCATION,0L);SET(CURLOPT_SSL_VERIFYPEER,1L);SET(CURLOPT_SSL_VERIFYHOST,2L);SET(CURLOPT_NOSIGNAL,1L);SET(CURLOPT_CONNECTTIMEOUT_MS,10000L);SET(CURLOPT_TIMEOUT_MS,300000L);SET(CURLOPT_WRITEFUNCTION,receive);SET(CURLOPT_WRITEDATA,&d);SET(CURLOPT_NOPROGRESS,0L);SET(CURLOPT_XFERINFOFUNCTION,progress);SET(CURLOPT_XFERINFODATA,&d);
+ SET(CURLOPT_URL,url);SET(CURLOPT_FOLLOWLOCATION,0L);SET(CURLOPT_SSL_VERIFYPEER,1L);SET(CURLOPT_SSL_VERIFYHOST,2L);SET(CURLOPT_NOSIGNAL,1L);SET(CURLOPT_CONNECTTIMEOUT_MS,10000L);SET(CURLOPT_WRITEFUNCTION,receive);SET(CURLOPT_WRITEDATA,&d);SET(CURLOPT_NOPROGRESS,0L);SET(CURLOPT_XFERINFOFUNCTION,progress);SET(CURLOPT_XFERINFODATA,&d);
 #if LIBCURL_VERSION_NUM >= 0x075500
  SET(CURLOPT_PROTOCOLS_STR,"https");
 #else
@@ -61,11 +83,11 @@ static int extract_node(const char *archive_path,const char *expected,const char
 static char *configuration(const char *node,const char *home,const char *assets,int probe){
  J *c=json_object_new_object(),*args=json_object_new_array();json_object_object_add(c,"executable",json_object_new_string(node));json_object_object_add(c,"home",json_object_new_string(home));json_object_object_add(c,"timeoutMs",json_object_new_int(15000));
  if(probe){json_object_array_add(args,json_object_new_string("-e"));json_object_array_add(args,json_object_new_string("process.stdout.write(JSON.stringify({protocol:'dunlin.worker',major:1,nonce:process.env.DUNLIN_WORKER_NONCE,methods:[],runtime:{node:process.versions.node}})+'\\n');process.stdin.resume()"));}
- else {char host[PATH_MAX],compat[PATH_MAX],toolchain[PATH_MAX];snprintf(host,sizeof host,"%s/hosts/node-dsh/worker.mjs",assets);snprintf(compat,sizeof compat,"%s/compat/dsh",assets);snprintf(toolchain,sizeof toolchain,"%s/toolchain",assets);json_object_array_add(args,json_object_new_string(host));json_object_array_add(args,json_object_new_string(compat));json_object_array_add(args,json_object_new_string(toolchain));}
+ else {json_object_object_add(c,"nativeBridge",json_object_new_boolean(1));char host[PATH_MAX],compat[PATH_MAX],toolchain[PATH_MAX];snprintf(host,sizeof host,"%s/hosts/node-dsh/worker.mjs",assets);snprintf(compat,sizeof compat,"%s/compat/dsh",assets);snprintf(toolchain,sizeof toolchain,"%s/toolchain",assets);json_object_array_add(args,json_object_new_string(host));json_object_array_add(args,json_object_new_string(compat));json_object_array_add(args,json_object_new_string(toolchain));}
  json_object_object_add(c,"args",args);char *raw=strdup(json_object_to_json_string_ext(c,JSON_C_TO_STRING_PLAIN));json_object_put(c);return raw;
 }
-dc_worker *dc_dsh_prepare(const char *directory,const char *assets,const char *selected,int upgrade,const dc_hooks *hooks,char **failure,char **actual){
- if(failure)*failure=NULL;if(actual)*actual=NULL;const char *error="compatibility_assets_invalid";char asset_root[PATH_MAX],home[PATH_MAX],node[PATH_MAX],runtime[PATH_MAX];dc_worker *worker=NULL;
+static dc_worker *prepare(const char *directory,const char *assets,const char *selected,int upgrade,int detect_only,const dc_hooks *hooks,char **failure,char **actual){
+ if(failure)*failure=NULL;if(actual)*actual=NULL;const char *error="compatibility_assets_invalid";char asset_root[PATH_MAX],home[PATH_MAX],node[PATH_MAX],runtime[PATH_MAX],staged[PATH_MAX]={0};dc_worker *worker=NULL;
  if(!assets||!realpath(assets,asset_root)||!verify_assets(asset_root))goto done;
  snprintf(home,sizeof home,"%s/Compatibility",directory);if(!private_dir(home)){error="compatibility_directory_unavailable";goto done;}snprintf(home,sizeof home,"%s/Compatibility/dsh",directory);if(!private_dir(home)){error="compatibility_directory_unavailable";goto done;}
 #if defined(__APPLE__) && (defined(__arm64__) || defined(__aarch64__))
@@ -83,16 +105,34 @@ dc_worker *dc_dsh_prepare(const char *directory,const char *assets,const char *s
  if(!candidate){const char *known[]={"/opt/homebrew/bin/node","/usr/local/bin/node","/usr/bin/node"};for(size_t i=0;i<3;i++)if(!access(known[i],X_OK)){candidate=known[i];break;}}
  event(hooks,"probing");
  if(candidate){char *probe=configuration(candidate,home,asset_root,1),*detail=NULL;worker=probe?dc_worker_open(probe,hooks,&detail):NULL;free(probe);free(detail);char *cap=worker?dc_worker_capabilities(worker):NULL;J *hello=cap?dunlin_json_parse(cap,strlen(cap)):NULL;free(cap);const char *version=str(get(hello,"runtime"),"node");int supported=eq(version,"26.13.0");json_object_put(hello);dc_worker_close(worker);worker=NULL;
+  if(stopped(hooks)){error="cancelled";goto done;}
   if(supported){if(!realpath(candidate,node)){error="node_unavailable";goto done;}}
   else {if(!upgrade){error="engine_upgrade_confirmation_required";goto done;}candidate=NULL;snprintf(node,sizeof node,"%s/node",runtime);}
  }
  if(stopped(hooks)){error="cancelled";goto done;}
  if(!candidate){
+  if(detect_only){error="engine_download_required";goto done;}
   char archive[PATH_MAX],binary[PATH_MAX],url[256],entry[128];snprintf(archive,sizeof archive,"%s/download-XXXXXX",home);int fd=mkstemp(archive);if(fd<0){error="download_staging_failed";goto done;}close(fd);unlink(archive);
   snprintf(url,sizeof url,"https://nodejs.org/dist/v26.13.0/node-v26.13.0-%s.tar.gz",platform);event(hooks,"downloading");if(!fetch(url,sha,archive,hooks)){error=stopped(hooks)?"cancelled":"engine_download_or_digest_failed";goto done;}
-  snprintf(binary,sizeof binary,"%s/node-XXXXXX",runtime);fd=mkstemp(binary);if(fd<0){unlink(archive);error="engine_staging_failed";goto done;}close(fd);unlink(binary);snprintf(entry,sizeof entry,"node-v26.13.0-%s/bin/node",platform);event(hooks,"verifying");int ok=extract_node(archive,entry,binary,hooks);unlink(archive);if(!ok||rename(binary,node)){unlink(binary);error=stopped(hooks)?"cancelled":"engine_archive_invalid";goto done;}
+  snprintf(binary,sizeof binary,"%s/node-XXXXXX",runtime);fd=mkstemp(binary);if(fd<0){unlink(archive);error="engine_staging_failed";goto done;}close(fd);unlink(binary);snprintf(entry,sizeof entry,"node-v26.13.0-%s/bin/node",platform);event(hooks,"verifying");int ok=extract_node(archive,entry,binary,hooks);unlink(archive);if(!ok){unlink(binary);error=stopped(hooks)?"cancelled":"engine_archive_invalid";goto done;}snprintf(staged,sizeof staged,"%s",binary);
  }
- event(hooks,"starting");{char *config=configuration(node,home,asset_root,0),*detail=NULL;worker=config?dc_worker_open(config,hooks,&detail):NULL;free(config);error=worker?NULL:"compatibility_handshake_failed";free(detail);if(worker){char *raw=dc_worker_capabilities(worker);J *hello=raw?dunlin_json_parse(raw,strlen(raw)):NULL;free(raw);J *runtime_info=get(hello,"runtime");if(!eq(str(runtime_info,"node"),"26.13.0")||!eq(str(runtime_info,"commit"),"1f81c047fc48fa190a683e469daa699857e9afe8")||!eq(str(runtime_info,"cordis"),"4.0.5")){error="compatibility_version_mismatch";dc_worker_close(worker);worker=NULL;}json_object_put(hello);}}
+ event(hooks,"starting");{char *config=configuration(staged[0]?staged:node,home,asset_root,0),*detail=NULL;worker=config?dc_worker_open(config,hooks,&detail):NULL;free(config);error=worker?NULL:"compatibility_handshake_failed";free(detail);if(worker){char *raw=dc_worker_capabilities(worker);J *hello=raw?dunlin_json_parse(raw,strlen(raw)):NULL;free(raw);J *runtime_info=get(hello,"runtime");if(!eq(str(runtime_info,"node"),"26.13.0")||!eq(str(runtime_info,"commit"),"1f81c047fc48fa190a683e469daa699857e9afe8")||!eq(str(runtime_info,"cordis"),"4.0.5")){error="compatibility_version_mismatch";dc_worker_close(worker);worker=NULL;}json_object_put(hello);}}
+ if(worker&&staged[0]){
+  if(stopped(hooks)||rename(staged,node)){
+   error=stopped(hooks)?"cancelled":"engine_staging_failed";
+   dc_worker_close(worker);worker=NULL;
+  }else staged[0]=0;
+ }
  if(worker&&actual)*actual=strdup(node);
- done:if(error&&failure)*failure=strdup(error);return worker;
+ done:if(staged[0])unlink(staged);if(error&&failure)*failure=strdup(error);return worker;
+}
+
+dc_worker *dc_dsh_prepare(const char *directory,const char *assets,const char *selected,int upgrade,const dc_hooks *hooks,char **failure,char **actual){
+ return prepare(directory,assets,selected,upgrade,0,hooks,failure,actual);
+}
+int dc_dsh_detect(const char *directory,const char *assets,const char *selected,const dc_hooks *hooks,char **failure,char **actual){
+ dc_worker *worker=prepare(directory,assets,selected,0,1,hooks,failure,actual);
+ if(!worker)return 0;
+ dc_worker_close(worker);
+ return 1;
 }

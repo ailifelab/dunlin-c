@@ -22,6 +22,7 @@ struct ProjectSidebarHeader: NSViewRepresentable {
       button.isBordered = false
       button.setButtonType(.momentaryPushIn)
       button.setAccessibilityElement(true)
+      button.setAccessibilityRole(.button)
       if index < 2 { button.widthAnchor.constraint(equalToConstant: index == 0 ? 10 : 18).isActive = true }
       else {
         button.alignment = .left

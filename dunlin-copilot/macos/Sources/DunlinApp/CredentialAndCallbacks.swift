@@ -5,13 +5,26 @@ import SwiftUI
 
 // Event/approval handlers are configured before enqueue; only cancellation mutates across queues.
 final class Callbacks: @unchecked Sendable {
-  let lock = NSLock()
-  var stopped = false
+  private let lock = NSCondition()
+  private var stopped = false
+  private var downloadPaused = false
+  func setDownloadPaused(_ value: Bool) {
+    lock.lock()
+    downloadPaused = value
+    lock.broadcast()
+    lock.unlock()
+  }
+  func waitForDownload() {
+    lock.lock()
+    while downloadPaused && !stopped { lock.wait() }
+    lock.unlock()
+  }
   var approve: (String, String) -> Int32 = { _, _ in 0 }
   var event: (String, String) -> Void = { _, _ in }
   func cancel() {
     lock.lock()
     stopped = true
+    lock.broadcast()
     lock.unlock()
   }
   func isCancelled() -> Bool {
@@ -22,11 +35,21 @@ final class Callbacks: @unchecked Sendable {
 }
 enum ModelCredentialError: Error, LocalizedError {
   case cancelled, denied, unavailable(OSStatus), invalid
+  var title: String {
+    switch self {
+    case .cancelled: return "已取消钥匙串授权"
+    case .denied: return "钥匙串授权未通过"
+    case .unavailable(let status) where status == errSecDatabaseLocked: return "钥匙串已锁定"
+    case .unavailable: return "暂时无法读取钥匙串"
+    case .invalid: return "凭据格式无效"
+    }
+  }
   var errorDescription: String? {
     switch self {
     case .cancelled: return "已取消钥匙串授权，未向模型发送请求。"
     case .denied: return "钥匙串授权未通过，未向模型发送请求。"
-    case .unavailable: return "钥匙串暂不可用，请解锁后重试；不会改用其他凭据。"
+    case .unavailable(let status) where status == errSecDatabaseLocked: return "请解锁钥匙串后重新授权。"
+    case .unavailable: return "请检查钥匙串是否已解锁，并允许访问此凭据。"
     case .invalid: return "密钥格式无效，请检查长度和换行字符。"
     }
   }

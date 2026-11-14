@@ -136,6 +136,15 @@ try:
   with inject() as sql:assert not sql.execute("SELECT 1 FROM attachment_messages WHERE scope=1 AND owner='image'").fetchone();assert sql.execute('SELECT count(*) FROM attachment_resources').fetchone()[0]==before_count-1
   lib.dc_close(db);db=lib.dc_open(str(data).encode());assert db
   assert read('attachments.read',chat='text',sequence=0,canonicalHash=text_image['canonicalHash'])['data']['text'].encode()==body
+  # The cleanup estimate must count each shared blob only after its last other owner disappears.
+  for identity in (b'cleanup-a',b'cleanup-b'):
+   assert lib.dc_add_chat(db,identity,identity,str(work).encode())
+  def exclusive(chat):return ok('chats.cleanup.preview',id=chat)['exclusiveBytes']
+  before=exclusive('cleanup-a')
+  assert stage('cleanup-a',png)['ok'] and exclusive('cleanup-a')==before+len(png)
+  assert stage('cleanup-b',png)['ok'] and exclusive('cleanup-a')==before
+  assert lib.dc_delete_chat(db,b'cleanup-b') and exclusive('cleanup-a')==before+len(png)
+  assert lib.dc_delete_chat(db,b'cleanup-a') and not req('chats.cleanup.preview',id='cleanup-a')['ok']
   lib.dc_close(db);assert not errors,errors
   print('PASS bounded C file ingestion, symlink/type/format/stale rejection, actual pre-upgrade copy integrity, source-scoped GC and reopen')
 finally:server.shutdown();server.server_close();worker.join(2)

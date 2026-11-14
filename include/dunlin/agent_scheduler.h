@@ -25,6 +25,11 @@ typedef struct {
  */
 dl_agent_scheduler *dl_agent_scheduler_open(sqlite3 *,const char *principal,unsigned capacity);
 void dl_agent_scheduler_close(dl_agent_scheduler *);
+/* Optional host-owned capacity shared with another executor on the same DB.
+ * Called inside claim/wake's write transaction. Must only read this borrowed
+ * connection, never reenter the scheduler; return >=capacity on read failure.
+ * Host installs it on every claiming handle; NULL preserves standalone use. */
+void dl_agent_scheduler_external_load(dl_agent_scheduler *,unsigned (*)(void *),void *);
 dl_sched_status dl_agent_enqueue(dl_agent_scheduler *,const dl_agent_job *);
 /* Claim oldest eligible queued job. Readers may overlap; a writer exclusively
  * owns its resource across projects. One chat may have only one active job.
@@ -45,5 +50,9 @@ dl_sched_status dl_agent_finish(dl_agent_scheduler *,const char *id,int64_t gene
 dl_sched_status dl_agent_park(dl_agent_scheduler *,const char *id,int64_t generation);
 dl_sched_status dl_agent_wake(dl_agent_scheduler *,const char *id,int64_t generation);
 dl_sched_status dl_agent_cancel(dl_agent_scheduler *,const char *id);
+/* Retract an unclaimed input only. The queued-state comparison and family
+ * cancellation are atomic; running/waiting/settled roots return STALE without
+ * changing that job or its descendants. */
+dl_sched_status dl_agent_cancel_queued(dl_agent_scheduler *,const char *id);
 dl_sched_status dl_agent_scheduler_recover(dl_agent_scheduler *);
 #endif

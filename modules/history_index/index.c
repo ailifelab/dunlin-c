@@ -161,7 +161,10 @@ int dl_index_delete(dl_index *x,const char *scope,const char *chat){
     return ok;
 }
 char *dl_index_search(dl_index *x,const char *scope,const char *query){
-    if(!x||!scope||!query)return NULL;
+    return dl_index_search_page(x,scope,query,0);
+}
+char *dl_index_search_page(dl_index *x,const char *scope,const char *query,int offset){
+    if(!x||!scope||!query||offset<0)return NULL;
     char *t=dl_index_terms(query,1);
     if(!t)return NULL;
     sqlite3_stmt *s=NULL;
@@ -169,10 +172,11 @@ char *dl_index_search(dl_index *x,const char *scope,const char *query){
         free(t);
         return copy_text("[]");
     }
-    int ok=sqlite3_prepare_v2(x->db,"SELECT chat,sequence,text FROM history_fts WHERE history_fts MATCH ? AND scope=? ORDER BY bm25(history_fts) LIMIT 50",-1,&s,0)==SQLITE_OK;
+    int ok=sqlite3_prepare_v2(x->db,"SELECT chat,sequence,text,snippet(history_fts,4,'[',']','…',12) FROM history_fts WHERE history_fts MATCH ? AND scope=? ORDER BY bm25(history_fts),rowid LIMIT 50 OFFSET ?",-1,&s,0)==SQLITE_OK;
     if(ok){
         sqlite3_bind_text(s,1,t,-1,SQLITE_TRANSIENT);
         sqlite3_bind_text(s,2,scope,-1,SQLITE_TRANSIENT);
+        sqlite3_bind_int(s,3,offset);
     }
     free(t);
     sqlite3_str *out=sqlite3_str_new(NULL);
@@ -181,13 +185,14 @@ char *dl_index_search(dl_index *x,const char *scope,const char *query){
     while(ok&&(rc=sqlite3_step(s))==SQLITE_ROW){
         count++;
         sqlite3_stmt *q=NULL;
-        if(sqlite3_prepare_v2(x->db,"SELECT json_object('chat',?,'sequence',?,'text',?)",-1,&q,0)!=SQLITE_OK){
+        if(sqlite3_prepare_v2(x->db,"SELECT json_object('chat',?,'sequence',?,'text',?,'matchSnippet',?)",-1,&q,0)!=SQLITE_OK){
             ok=0;
             break;
         }
         sqlite3_bind_text(q,1,(const char*)sqlite3_column_text(s,0),-1,SQLITE_TRANSIENT);
         sqlite3_bind_int(q,2,sqlite3_column_int(s,1));
         sqlite3_bind_text(q,3,(const char*)sqlite3_column_text(s,2),-1,SQLITE_TRANSIENT);
+        sqlite3_bind_text(q,4,(const char*)sqlite3_column_text(s,3),-1,SQLITE_TRANSIENT);
         if(sqlite3_step(q)==SQLITE_ROW){
             if(count>1)sqlite3_str_appendall(out,",");
             sqlite3_str_appendall(out,(const char*)sqlite3_column_text(q,0));

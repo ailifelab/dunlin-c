@@ -1,6 +1,7 @@
 #ifndef DUNLIN_DESKTOP_H
 #define DUNLIN_DESKTOP_H
 #include <stddef.h>
+#include <stdint.h>
 typedef struct dc_store dc_store;
 /* Callbacks are synchronous, borrowed for a run; do not reenter its writer.
  * chat.commit notifies only a durable append: {chat,run,through,settlesModel}.
@@ -12,16 +13,30 @@ typedef struct {void *user;void (*event)(void *,const char *,const char *);int (
 dc_store *dc_open(const char *directory);
 /* Create on the owner's serialized queue before dispatch. A worker owns a
  * separate connection and a duplicate of the process lease, without startup
- * recovery. Use only dc_agent_execute on its serial queue, then dc_close.
+ * recovery. Use dc_agent_execute or dc_helper_execute on its serial queue,
+ * then dc_close.
  * Host must freeze configuration/destructive edits until workers have joined.
  * Never use this to access a second identity or run two workers on one store. */
 dc_store *dc_open_agent_worker(dc_store *owner);
+/* Execute one text-only optional-plugin helper on its own worker connection.
+ * revision must be the C pending DTO revision used to resolve the borrowed key.
+ * No tools, chat mutation, environment keys or optional-host reentry. */
+char *dc_helper_execute(dc_store *,const char *job,long long revision,
+    const char *secret,const dc_hooks *);
+int dc_helper_cancel(dc_store *,const char *job,long long revision);
 void dc_close(dc_store *);
 /* Trusted native host binds its own bundle for OS permission reset adapters. */
 int dc_configure_platform_grants(dc_store *,const char *bundle_id);
+/* Native account connection only. Endpoint, account label and opaque lease id
+ * are persisted. The bearer token is borrowed only during explicit revocation. */
+int dc_remote_account_record(dc_store *,const char *id,const char *chat,const char *label,
+    const char *endpoint,int64_t expires);
+char *dc_remote_account_revoke(dc_store *,const char *id,const char *expected_endpoint,const char *token);
 void dc_free(void *);
 int dc_add_chat(dc_store *,const char *id,const char *title,const char *workspace);
 int dc_delete_chat(dc_store *,const char *id);
+/* Keep eligible project/global memories in their existing scope when explicitly chosen. */
+int dc_delete_chat_preserving_memories(dc_store *,const char *id,int preserve);
 int dc_rename_chat(dc_store *,const char *id,const char *title);
 char *dc_chats(dc_store *);
 char *dc_messages(dc_store *,const char *id);
@@ -40,6 +55,10 @@ char *dc_agent_execute(dc_store *,const char *job,const char *settings,
  * attachment. NULL input resumes without consuming pending resources.
  * input_committed reports the durable user-append boundary on every return,
  * including transport/permission failures after the input was accepted. */
+/* Retry a settled unanswered user message, identified by its original run.
+ * Revalidates the checkpoint at admission; never reopens pending tool work. */
+char *dc_retry_chat_turn(dc_store *,const char *chat,const char *settings,const char *prior_run,
+                         const dc_hooks *,const char *secret);
 char *dc_run_message_with_secret(dc_store *,const char *,const char *,const char *,
     const dc_hooks *,const char *secret,const char *expected_draft,int *input_committed);
 /* Native clipboard/capture bytes enter only this bounded C staging API.
@@ -69,6 +88,7 @@ char *dc_attachment_preview(const char *name,const char *origin,int format,
  * Returns1 to schedule another bounded batch,0 when drained/paused,-1 on error. */
 int dc_index_pending(dc_store *,unsigned limit);
 char *dc_search(dc_store *,const char *query);
+char *dc_search_filtered(dc_store *,const char *query,const char *project,int64_t since_ms);
 /* Versioned C-owned project/chat metadata service. Serialized like dc_run.
  * JSON request {op,...}; owned reply {ok,error?,data?}. Revisions are required
  * on project updates. Project removal never removes workspace files. */

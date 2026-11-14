@@ -16,3 +16,17 @@ dc_context_status dc_context_budget(const dc_context_capabilities *c,dc_context_
  if(r->selected<r->minimum||r->selected>r->maximum)return DC_CONTEXT_INVALID;
  r->input_budget=r->selected-r->output-c->overhead_reserve;return DC_CONTEXT_VALID;
 }
+
+dc_context_status dc_context_editor_budget(const dc_context_capabilities *caps,
+    int has_choice, int64_t choice, dc_context_range *range) {
+    if (!caps || !range) return DC_CONTEXT_INVALID;
+    dc_context_capabilities draft = *caps;
+    draft.selected_limit = 0;
+    dc_context_status status = dc_context_budget(&draft, range);
+    if (status != DC_CONTEXT_VALID || !has_choice) return status;
+    uint64_t selected = choice < 0 ? 0 : (uint64_t)choice;
+    if (selected < range->minimum) selected = range->minimum;
+    if (selected > range->maximum) selected = range->maximum;
+    draft.selected_limit = selected;
+    return dc_context_budget(&draft, range);
+}

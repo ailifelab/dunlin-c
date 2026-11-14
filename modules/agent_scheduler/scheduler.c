@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-struct dl_agent_scheduler {sqlite3 *db;};
+struct dl_agent_scheduler {sqlite3 *db;unsigned (*external)(void *);void *external_user;};
 static int ident(const char *s,size_t max,int empty,int resource){
     if(!s)return 0;size_t n=0;while(n<=max&&s[n])n++;if(n>max||(!n&&!empty))return 0;
     for(size_t i=0;i<n;i++){unsigned char c=(unsigned char)s[i];if(!((c>='a'&&c<='z')||(c>='A'&&c<='Z')||(c>='0'&&c<='9')||c=='_'||c=='-'||(resource&&c==':')))return 0;}return 1;
@@ -36,6 +36,7 @@ dl_agent_scheduler *dl_agent_scheduler_open(sqlite3 *db,const char *principal,un
     if(end(s,ok?DL_SCHED_OK:DL_SCHED_STORAGE)!=DL_SCHED_OK){free(s);return NULL;}return s;
 }
 void dl_agent_scheduler_close(dl_agent_scheduler *s){free(s);}
+void dl_agent_scheduler_external_load(dl_agent_scheduler *s,unsigned (*load)(void *),void *user){if(s){s->external=load;s->external_user=user;}}
 void dl_agent_job_clear(dl_agent_job *j){if(j){free(j->task);memset(j,0,sizeof *j);}}
 static int job_row(sqlite3_stmt *p,dl_agent_job *j){
     memset(j,0,sizeof *j);char *dest[]={j->id,j->project,j->chat,j->parent,j->model,j->resource,j->state};size_t cap[]={65,65,65,65,65,129,24};
@@ -66,8 +67,8 @@ dl_sched_status dl_agent_enqueue(dl_agent_scheduler *s,const dl_agent_job *j){
 }
 static dl_sched_status claim_job(dl_agent_scheduler *s,const char *wanted,dl_agent_job *j){
     if(j)memset(j,0,sizeof *j);if(!j)return DL_SCHED_INVALID;dl_sched_status status=begin(s);if(status!=DL_SCHED_OK)return status;
-    sqlite3_stmt *p=prepare(s,"SELECT q.id FROM agent_jobs q WHERE q.state='queued' AND (?='' OR q.id=?) AND (SELECT count(*) FROM agent_jobs WHERE state IN('running','cancel_requested'))<(SELECT capacity FROM agent_scheduler_meta WHERE id=1) AND NOT EXISTS(SELECT 1 FROM agent_jobs a WHERE a.state IN('running','cancel_requested') AND (a.chat=q.chat OR (a.resource=q.resource AND (a.write_access=1 OR q.write_access=1)))) ORDER BY q.seq LIMIT 1");
-    if(!p)return end(s,DL_SCHED_STORAGE);bind(p,1,wanted);bind(p,2,wanted);int rc=sqlite3_step(p);char id[65]="";if(rc==SQLITE_ROW){const char *v=(const char*)sqlite3_column_text(p,0);if(!ident(v,64,0,0)){sqlite3_finalize(p);return end(s,DL_SCHED_STORAGE);}snprintf(id,sizeof id,"%s",v);}sqlite3_finalize(p);if(rc!=SQLITE_ROW)return end(s,rc==SQLITE_DONE?DL_SCHED_EMPTY:DL_SCHED_STORAGE);
+    sqlite3_stmt *p=prepare(s,"SELECT q.id FROM agent_jobs q WHERE q.state='queued' AND (?='' OR q.id=?) AND (SELECT count(*) FROM agent_jobs WHERE state IN('running','cancel_requested'))+?3<(SELECT capacity FROM agent_scheduler_meta WHERE id=1) AND NOT EXISTS(SELECT 1 FROM agent_jobs a WHERE a.state IN('running','cancel_requested') AND (a.chat=q.chat OR (a.resource=q.resource AND (a.write_access=1 OR q.write_access=1)))) ORDER BY q.seq LIMIT 1");
+    if(!p)return end(s,DL_SCHED_STORAGE);bind(p,1,wanted);bind(p,2,wanted);sqlite3_bind_int64(p,3,s->external?s->external(s->external_user):0);int rc=sqlite3_step(p);char id[65]="";if(rc==SQLITE_ROW){const char *v=(const char*)sqlite3_column_text(p,0);if(!ident(v,64,0,0)){sqlite3_finalize(p);return end(s,DL_SCHED_STORAGE);}snprintf(id,sizeof id,"%s",v);}sqlite3_finalize(p);if(rc!=SQLITE_ROW)return end(s,rc==SQLITE_DONE?DL_SCHED_EMPTY:DL_SCHED_STORAGE);
     if(!sql(s,"UPDATE agent_scheduler_meta SET next_generation=next_generation+1 WHERE id=1 AND next_generation<9223372036854775807")||sqlite3_changes(s->db)!=1)return end(s,DL_SCHED_LIMIT);
     p=prepare(s,"UPDATE agent_jobs SET state='running',generation=(SELECT next_generation FROM agent_scheduler_meta WHERE id=1) WHERE id=? AND state='queued'");if(!p)return end(s,DL_SCHED_STORAGE);bind(p,1,id);int ok=sqlite3_step(p)==SQLITE_DONE&&sqlite3_changes(s->db)==1;sqlite3_finalize(p);if(!ok)return end(s,DL_SCHED_STORAGE);
     status=dl_agent_job_get(s,id,j);status=end(s,status);if(status!=DL_SCHED_OK)dl_agent_job_clear(j);return status;
@@ -79,16 +80,18 @@ dl_sched_status dl_agent_finish(dl_agent_scheduler *s,const char *id,int64_t gen
     dl_sched_status status=begin(s);if(status!=DL_SCHED_OK)return status;
     sqlite3_stmt *p=prepare(s,"UPDATE agent_jobs SET state=CASE WHEN state='cancel_requested' THEN 'cancelled' ELSE ? END WHERE id=? AND generation=? AND state IN('running','cancel_requested')");if(!p)return end(s,DL_SCHED_STORAGE);bind(p,1,outcome);bind(p,2,id);sqlite3_bind_int64(p,3,generation);int rc=sqlite3_step(p),changed=sqlite3_changes(s->db);sqlite3_finalize(p);return end(s,rc!=SQLITE_DONE?DL_SCHED_STORAGE:changed==1?DL_SCHED_OK:DL_SCHED_STALE);
 }
-dl_sched_status dl_agent_cancel(dl_agent_scheduler *s,const char *id){
+static dl_sched_status cancel_job(dl_agent_scheduler *s,const char *id,int queued_only){
     if(!ident(id,64,0,0))return DL_SCHED_INVALID;dl_sched_status status=begin(s);if(status!=DL_SCHED_OK)return status;
-    dl_agent_job job={0};status=dl_agent_job_get(s,id,&job);dl_agent_job_clear(&job);if(status!=DL_SCHED_OK)return end(s,status);
+    dl_agent_job job={0};status=dl_agent_job_get(s,id,&job);if(status==DL_SCHED_OK&&queued_only&&strcmp(job.state,"queued"))status=DL_SCHED_STALE;dl_agent_job_clear(&job);if(status!=DL_SCHED_OK)return end(s,status);
     sqlite3_stmt *p=prepare(s,"WITH RECURSIVE family(id) AS (SELECT id FROM agent_jobs WHERE id=? UNION SELECT j.id FROM agent_jobs j JOIN family f ON j.parent=f.id) UPDATE agent_jobs SET state=CASE WHEN state IN('queued','waiting') THEN 'cancelled' ELSE 'cancel_requested' END WHERE id IN(SELECT id FROM family) AND state IN('queued','running','waiting')");if(!p)return end(s,DL_SCHED_STORAGE);bind(p,1,id);int ok=sqlite3_step(p)==SQLITE_DONE;sqlite3_finalize(p);return end(s,ok?DL_SCHED_OK:DL_SCHED_STORAGE);
 }
+dl_sched_status dl_agent_cancel(dl_agent_scheduler *s,const char *id){return cancel_job(s,id,0);}
+dl_sched_status dl_agent_cancel_queued(dl_agent_scheduler *s,const char *id){return cancel_job(s,id,1);}
 static dl_sched_status lease_transition(dl_agent_scheduler *s,const char *id,int64_t generation,int wake){
     if(!ident(id,64,0,0)||generation<=0)return DL_SCHED_INVALID;dl_sched_status status=begin(s);if(status!=DL_SCHED_OK)return status;
     dl_agent_job job={0};status=dl_agent_job_get(s,id,&job);int valid=status==DL_SCHED_OK&&job.generation==generation&&!strcmp(job.state,wake?"waiting":"running");dl_agent_job_clear(&job);if(!valid)return end(s,status==DL_SCHED_OK||status==DL_SCHED_EMPTY?DL_SCHED_STALE:status);
-    const char *query=wake?"UPDATE agent_jobs AS q SET state='running' WHERE id=? AND generation=? AND state='waiting' AND (SELECT count(*) FROM agent_jobs WHERE state IN('running','cancel_requested'))<(SELECT capacity FROM agent_scheduler_meta WHERE id=1) AND NOT EXISTS(SELECT 1 FROM agent_jobs a WHERE a.state IN('running','cancel_requested') AND (a.chat=q.chat OR (a.resource=q.resource AND (a.write_access=1 OR q.write_access=1))))":"UPDATE agent_jobs SET state='waiting' WHERE id=? AND generation=? AND state='running'";
-    sqlite3_stmt *p=prepare(s,query);if(!p)return end(s,DL_SCHED_STORAGE);bind(p,1,id);sqlite3_bind_int64(p,2,generation);int rc=sqlite3_step(p),changed=sqlite3_changes(s->db);sqlite3_finalize(p);return end(s,rc!=SQLITE_DONE?DL_SCHED_STORAGE:changed?DL_SCHED_OK:DL_SCHED_LIMIT);
+    const char *query=wake?"UPDATE agent_jobs AS q SET state='running' WHERE id=? AND generation=? AND state='waiting' AND (SELECT count(*) FROM agent_jobs WHERE state IN('running','cancel_requested'))+?3<(SELECT capacity FROM agent_scheduler_meta WHERE id=1) AND NOT EXISTS(SELECT 1 FROM agent_jobs a WHERE a.state IN('running','cancel_requested') AND (a.chat=q.chat OR (a.resource=q.resource AND (a.write_access=1 OR q.write_access=1))))":"UPDATE agent_jobs SET state='waiting' WHERE id=? AND generation=? AND state='running'";
+    sqlite3_stmt *p=prepare(s,query);if(!p)return end(s,DL_SCHED_STORAGE);bind(p,1,id);sqlite3_bind_int64(p,2,generation);if(wake)sqlite3_bind_int64(p,3,s->external?s->external(s->external_user):0);int rc=sqlite3_step(p),changed=sqlite3_changes(s->db);sqlite3_finalize(p);return end(s,rc!=SQLITE_DONE?DL_SCHED_STORAGE:changed?DL_SCHED_OK:DL_SCHED_LIMIT);
 }
 dl_sched_status dl_agent_park(dl_agent_scheduler *s,const char *id,int64_t generation){return lease_transition(s,id,generation,0);}
 dl_sched_status dl_agent_wake(dl_agent_scheduler *s,const char *id,int64_t generation){return lease_transition(s,id,generation,1);}

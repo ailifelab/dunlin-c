@@ -11,6 +11,9 @@ struct json_object *dc_agents_request(dc_store *,struct json_object *);
 int dc_agents_chat_prepare(dc_store *,const char *,const char *,char **expanded,void **context);
 void dc_agents_chat_finish(dc_store *,void *context);
 void dc_agents_input_committed(dc_store *);
+const char *dc_agents_original_input(dc_store *);
+int dc_agents_source_message(dc_store *,struct json_object *);
+int dc_agents_commit_output(dc_store *,struct json_object *messages,size_t before);
 int dc_agents_commit_input(dc_store *,const char *chat,int64_t sequence,struct json_object *message);
 int dc_agents_forget_chat(dc_store *,const char *chat);
 #endif

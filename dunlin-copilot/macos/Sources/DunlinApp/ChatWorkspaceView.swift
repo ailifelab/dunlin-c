@@ -95,7 +95,7 @@ struct ChatWorkspaceView: View {
   let review: ChatWorkspaceReview
   var body: some View {
     VStack(alignment: .leading, spacing: 24) {
-      Text("重新关联此聊天的工作区").font(.system(size: 23, weight: .semibold))
+      Text("重新关联此聊天的工作区").font(.title.weight(.semibold))
       Text("项目默认目录保持不变。此操作只影响这段聊天后续的文件与命令操作。")
         .font(.callout).foregroundStyle(.secondary)
       VStack(alignment: .leading, spacing: 18) {

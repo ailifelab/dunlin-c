@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import UserNotifications
 
-private struct ChatBodySizeKey: EnvironmentKey { static let defaultValue: CGFloat = 18 }
+private struct ChatBodySizeKey: EnvironmentKey { static let defaultValue = CGFloat(ChatTextSize.standard.points) }
 extension EnvironmentValues {
   var chatBodySize: CGFloat {
     get { self[ChatBodySizeKey.self] }
@@ -12,9 +12,9 @@ extension EnvironmentValues {
 struct GeneralSettingsView: View {
   @EnvironmentObject var store: WorkspaceStore
   var body: some View {
-    VStack(alignment: .leading, spacing: 42) {
+    VStack(alignment: .leading, spacing: 24) {
       settingsGroup("外观与显示") {
-        settingsRow("外观", detail: "科技白与科技黑随应用内置。") { ThemePicker() }
+        settingsRow("外观", detail: "科技白与科技黑随应用内置。") { ThemePicker().labelsHidden().fixedSize() }
         Divider()
         settingsRow("文字大小") {
           Picker("文字大小", selection: $store.generalPreferences.textSize) {
@@ -51,14 +51,14 @@ struct GeneralSettingsView: View {
         }
       }
       Text("设置更改自动保存。系统透明度、对比度与动态效果设置会自动遵循。")
-        .font(.system(size:13)).foregroundStyle(.secondary).padding(.horizontal,20).padding(.top,16)
+        .font(.body).foregroundStyle(.secondary).padding(.horizontal,20).padding(.top,16)
     }.onAppear { store.refreshNotificationStatus() }
   }
   private func settingsGroup<Content: View>(_ title: String, @ViewBuilder content: () -> Content)
     -> some View
   {
-    VStack(alignment: .leading, spacing: 18) {
-      Text(title).font(.system(size: 16, weight: .semibold)).padding(.horizontal,20)
+    VStack(alignment: .leading, spacing: 12) {
+      Text(title).font(.headline.weight(.semibold)).padding(.horizontal,20)
       VStack(spacing:0) {content()}.padding(.horizontal,20).background(store.themeSurface)
     }
   }
@@ -66,13 +66,13 @@ struct GeneralSettingsView: View {
     _ title: String, detail: String? = nil, @ViewBuilder control: () -> Control
   ) -> some View {
     HStack(spacing: 24) {
-      VStack(alignment: .leading, spacing: 6) {
-        Text(title).font(.system(size: 14, weight: .medium))
-        if let detail { Text(detail).font(.system(size: 12)).foregroundStyle(.secondary) }
+      VStack(alignment: .leading, spacing: 4) {
+        Text(title).font(.body.weight(.medium))
+        if let detail { Text(detail).font(.callout).foregroundStyle(.secondary) }
       }
       Spacer(minLength: 10)
       control()
-    }.frame(minHeight:64)
+    }.padding(.vertical,8).frame(minHeight:48)
   }
 }
 struct ThemePicker: View {
@@ -91,7 +91,7 @@ struct ThemePicker: View {
       Text("科技白").tag("light")
       Text("科技黑").tag("dark")
       ForEach(store.installedThemes) { Text($0.name).tag($0.id) }
-    }.labelsHidden().fixedSize().accessibilityIdentifier("settings.theme")
+    }.accessibilityIdentifier("settings.theme")
       .onAppear { store.refreshThemes() }
   }
 }

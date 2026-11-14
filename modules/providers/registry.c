@@ -178,7 +178,7 @@ static J *preview(dc_store *s,J *r){
   J *out=fail("configuration_source_invalid"),*diagnostic=json_object_new_object();add(diagnostic,"code",parse_error.code<=DC_STATIC_MEMORY?codes[parse_error.code]:"static_syntax");json_object_object_add(diagnostic,"line",json_object_new_int64((int64_t)parse_error.line));json_object_object_add(diagnostic,"column",json_object_new_int64((int64_t)parse_error.column));json_object_object_add(out,"diagnostic",diagnostic);return out;
  }
  J *old=list(s);if(!old){json_object_put(parsed);return fail("configuration_storage_error");}
- J *models=json_object_new_array(),*providers=json_object_new_array(),*warnings=json_object_new_array(),*diagnostic=NULL;int ok=1;
+ J *models=json_object_new_array(),*providers=json_object_new_array(),*warnings=json_object_new_array(),*diagnostic=NULL,*source_providers=json_object_new_object();int ok=1;
  if(eq(text(parsed,"format"),"dunlin.config")){
   const char *const keys[]={"format","version","models","providers",NULL};ok=fields(parsed,keys)&&integer(get(parsed,"version"),1,1)&&validate(get(parsed,"models"),get(parsed,"providers"));
   J *mapping=json_object_new_object();
@@ -186,7 +186,7 @@ static J *preview(dc_store *s,J *r){
   if(ok)for(size_t i=0;i<json_object_array_length(get(parsed,"models"));i++){J *v=NULL;json_object_deep_copy(json_object_array_get_idx(get(parsed,"models"),i),&v,NULL);if(!v){ok=0;break;}char id[65];nonce(id);add(v,"id",id);const char *p=text(v,"providerID");if(p&&*p)add(v,"providerID",text(mapping,p));json_object_object_del(v,"credentialID");json_object_object_add(v,"credentialRevision",json_object_new_int(0));if(get(v,"contextLimit")||get(v,"advertisedOutputLimit"))add(v,"contextSource","导入配置声明（尚未联调核验）");json_object_array_add(models,v);}
   json_object_put(mapping);warning(warnings,"imported_routes_are_new");
  }else{
-  int dsh=dc_config_import_dsh(parsed,get(old,"providers"),models,providers,warnings,&diagnostic);
+  int dsh=dc_config_import_dsh(parsed,get(old,"providers"),models,providers,warnings,source_providers,&diagnostic);
   if(dsh<0)ok=0;
   else if(!dsh){
   ok=runtime_fields(parsed,1);J *routes=get(parsed,"models");if(routes&&!json_object_is_type(routes,json_type_object))ok=0;
@@ -195,11 +195,11 @@ static J *preview(dc_store *s,J *r){
   warning(warnings,"static_runtime_subset_only");
   }
  }
- json_object_put(parsed);if(!ok||!json_object_array_length(models)||!validate(models,providers)){json_object_put(old);json_object_put(models);json_object_put(providers);json_object_put(warnings);J *out=fail("configuration_unsupported_or_invalid");if(diagnostic)json_object_object_add(out,"diagnostic",diagnostic);return out;}json_object_put(diagnostic);
+ json_object_put(parsed);if(!ok||!json_object_array_length(models)||!validate(models,providers)){json_object_put(source_providers);json_object_put(old);json_object_put(models);json_object_put(providers);json_object_put(warnings);J *out=fail("configuration_unsupported_or_invalid");if(diagnostic)json_object_object_add(out,"diagnostic",diagnostic);return out;}json_object_put(diagnostic);
  int64_t revision=json_object_get_int64(get(old,"revision"));json_object_put(old);char id[65];nonce(id);
- if(!sql(s,"DELETE FROM configuration_imports WHERE consumed<>0 OR expires<unixepoch()")){json_object_put(models);json_object_put(providers);json_object_put(warnings);return fail("configuration_storage_error");}
+ if(!sql(s,"DELETE FROM configuration_imports WHERE consumed<>0 OR expires<unixepoch()")){json_object_put(source_providers);json_object_put(models);json_object_put(providers);json_object_put(warnings);return fail("configuration_storage_error");}
  sqlite3_stmt *q=prep(s,"INSERT INTO configuration_imports(id,revision,models,providers,warnings,expires) VALUES(?,?,?,?,?,unixepoch()+600)");if(q){bind_text(q,1,id);sqlite3_bind_int64(q,2,revision);bind_text(q,3,raw(models));bind_text(q,4,raw(providers));bind_text(q,5,raw(warnings));}ok=done(q);
- J *data=json_object_new_object();add(data,"plan",id);json_object_object_add(data,"revision",json_object_new_int64(revision));json_object_object_add(data,"models",models);json_object_object_add(data,"providers",providers);json_object_object_add(data,"warnings",warnings);json_object_object_add(data,"lifetimeSeconds",json_object_new_int(600));if(!ok){json_object_put(data);return fail("configuration_storage_error");}return reply(1,NULL,data);
+ J *data=json_object_new_object();json_object_object_add(data,"sourceProviders",source_providers);add(data,"plan",id);json_object_object_add(data,"revision",json_object_new_int64(revision));json_object_object_add(data,"models",models);json_object_object_add(data,"providers",providers);json_object_object_add(data,"warnings",warnings);json_object_object_add(data,"lifetimeSeconds",json_object_new_int(600));if(!ok){json_object_put(data);return fail("configuration_storage_error");}return reply(1,NULL,data);
 }
 static J *apply(dc_store *s,J *r){
  const char *id=text(r,"plan");if(!ident(id)||!json_object_is_type(get(r,"confirmed"),json_type_boolean)||!json_object_get_boolean(get(r,"confirmed")))return fail("configuration_confirmation_required");

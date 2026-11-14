@@ -22,6 +22,17 @@ with tempfile.TemporaryDirectory(prefix='dunlin-rag-chat-') as tmp:
  r=val(lib.dc_run(db,b'chat',json.dumps(cfg).encode(),b'Explain SQLite',None));assert r['status']=='completed',r;serialized=json.dumps(requests[-1]);assert 'NEVER auto-upgrade Node.' in serialized and 'indexed edges' in serialized and 'subject' in serialized
  messages=val(lib.dc_messages(db,b'chat'));assert messages[0]['content']=='Explain SQLite' and len(messages)==2;assert messages[0]['sequence']==0 and len(messages[0]['sourceHash'])==64
  op('memory.remove',id='m1',revision=m['revision']);cfg['model']='B';r=val(lib.dc_run(db,b'chat',json.dumps(cfg).encode(),b'Continue without recalled memory',None));assert r['status']=='completed',r;assert 'NEVER auto-upgrade Node.' not in json.dumps(requests[-1]);assert any(m.get('content')=='Explain SQLite' for m in requests[-1]['messages'])
+ source=messages[0]
+ derived=op('memory.create',id='derived',text='Fixture source preference',subject='alice',kind='preference',scope='global',scopeID='',sourceChat='chat',sourceSequence=0,sourceHash=source['sourceHash'])
+ op('memory.update',id='derived',revision=derived['revision'],status='confirmed')
+ assert op('memory.source.policy',chat='chat')['enabled']
+ op('memory.source.policy',chat='chat',enabled=False)
+ assert not op('memory.source.policy',chat='chat')['enabled']
+ r=val(lib.dc_run(db,b'chat',json.dumps(cfg).encode(),b'Check paused source',None));assert r['status']=='completed' and 'Fixture source preference' not in json.dumps(requests[-1]),r
+ denied=val(lib.dc_knowledge_call(db,json.dumps(dict(op='memory.create',id='denied',text='should fail',subject='alice',kind='fact',scope='global',scopeID='',sourceChat='chat',sourceSequence=0,sourceHash=source['sourceHash'])).encode()));assert denied['error']=='memory_source_paused'
+ op('memory.source.policy',chat='chat',enabled=True)
+ r=val(lib.dc_run(db,b'chat',json.dumps(cfg).encode(),b'Resume source',None));assert r['status']=='completed' and 'Fixture source preference' in json.dumps(requests[-1]),r
+ print('PASS source-specific pause prevents new candidates and suppresses confirmed recall; resume restores the existing source.')
  lib.dc_close(db)
  print('PASS confirmed memory and local RAG reach actual request view with provenance; canonical user text/IDs unchanged; removal stops later recall across model switch')
 server.shutdown();server.server_close()

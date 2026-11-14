@@ -15,9 +15,9 @@ struct AttachmentCard: View {
         Button { store.viewAttachment(attachment, chat: chat) } label: {
           HStack(spacing: 12) {
             Image(systemName: attachment.format == "png" ? "photo" : "doc.text")
-              .font(.system(size: 20)).foregroundStyle(.secondary)
+              .font(.title2).foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 4) {
-              Text(attachment.name).font(.system(size: 13, weight: .medium)).lineLimit(2)
+              Text(attachment.name).font(.body.weight(.medium)).lineLimit(2)
               Text(attachment.detail).font(.caption).foregroundStyle(.secondary)
             }
           }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
@@ -68,13 +68,13 @@ struct AttachmentPreviewView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 22) {
       Text(selection.adding ? "添加本轮上下文" : "查看原始附件")
-        .font(.system(size: 23, weight: .semibold))
+        .font(.title.weight(.semibold))
       Text(selection.adding
         ? "这些内容将在下一条消息中发送给所选模型。"
         : "此处展示已保存的原始内容，切换模型不会删除附件。")
         .font(.callout).foregroundStyle(.secondary)
       VStack(alignment: .leading, spacing: 6) {
-        Text(selection.payload.name).font(.system(size: 15, weight: .medium))
+        Text(selection.payload.name).font(.headline.weight(.medium))
         Text(selection.payload.record.detail).font(.caption).foregroundStyle(.secondary)
         if selection.payload.kind == "screenshot" {
           Text("系统选取的窗口或屏幕 · 最长边 1024 像素 · SDR PNG")
@@ -82,7 +82,7 @@ struct AttachmentPreviewView: View {
         }
       }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 10))
-      Text("内容预览").font(.system(size: 14, weight: .semibold))
+      Text("内容预览").font(.body.weight(.semibold))
       Group {
         if selection.payload.format == "png" {
           if let image {
@@ -95,7 +95,7 @@ struct AttachmentPreviewView: View {
         } else {
           ScrollView {
             Text(selection.payload.text?.isEmpty == false ? selection.payload.text! : "（空文本文件）")
-              .font(.system(size: 13, design: .monospaced)).textSelection(.enabled)
+              .font(.system(.body, design: .monospaced)).textSelection(.enabled)
               .frame(maxWidth: .infinity, alignment: .leading).padding(16)
           }
         }

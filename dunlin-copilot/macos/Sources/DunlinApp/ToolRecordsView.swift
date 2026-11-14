@@ -116,7 +116,6 @@ extension WorkspaceStore {
   func openToolRecords() {
     guard !creatingChat, !switchingModel, !workspaceTransitioning, !attachmentInteraction else { return }
     if !busy, let selected { persistDraft(selected) }
-    searchVisible = false
     route = "tools"
   }
   func inspectTool(sequence: Int) {
@@ -155,6 +154,7 @@ struct ToolRecordsView: View {
   @EnvironmentObject var store: WorkspaceStore
   @State private var chat = ""
   @State private var records: [ToolRecord] = []
+  @State private var embeddedReceipt: FileReceiptSelection?
   @State private var selectedID: Int64?
   @State private var detail: ToolRecord?
   @State private var more = false
@@ -170,9 +170,18 @@ struct ToolRecordsView: View {
   @State private var initialized = false
   private let tick = Timer.publish(every: 1.2, on: .main, in: .common).autoconnect()
   var body: some View {
+    ZStack {
+      recordsBody.opacity(embeddedReceipt == nil ? 1 : 0)
+        .allowsHitTesting(embeddedReceipt == nil).accessibilityHidden(embeddedReceipt != nil)
+      if let selection = embeddedReceipt {
+        FileReceiptView(selection: selection) { embeddedReceipt = nil }.id(selection.id)
+      }
+    }
+  }
+  private var recordsBody: some View {
     VStack(spacing: 0) {
       HStack(spacing: 14) {
-        Text("工具执行记录").font(.system(size: 20, weight: .semibold))
+        Text("工具执行记录").font(.title2.weight(.semibold))
         Spacer()
         if let onChat {
           Button("返回聊天") { onChat(nil) }.accessibilityIdentifier("tools.backToChat")
@@ -296,7 +305,7 @@ struct ToolRecordsView: View {
   }
   private func recordRow(_ record: ToolRecord) -> some View {
     HStack(alignment: .top, spacing: 12) {
-      Image(systemName: record.symbol).font(.system(size: 15)).foregroundStyle(record.color).frame(
+      Image(systemName: record.symbol).font(.headline).foregroundStyle(record.color).frame(
         width: 20
       ).padding(.top, 2)
       VStack(alignment: .leading, spacing: 7) {
@@ -305,7 +314,7 @@ struct ToolRecordsView: View {
           Spacer()
           Text(record.status).font(.caption).foregroundStyle(record.color)
         }
-        Text(record.target).font(.system(size: 12, design: .monospaced)).lineLimit(2)
+        Text(record.target).font(.system(.callout, design: .monospaced)).lineLimit(2)
           .foregroundStyle(.secondary)
         HStack(spacing: 12) {
           Text(record.historical ? "早期历史记录" : "回合 \(record.run.prefix(8))")
@@ -417,7 +426,10 @@ struct ToolRecordsView: View {
           }
         }
         if let id = detail.fileReceiptID {
-          Button("查看文件差异与回退…") { store.selectedReceipt = FileReceiptSelection(id: id, chat: chat) }
+          Button("查看文件差异与回退…") {
+            let selection = FileReceiptSelection(id: id, chat: chat, origin: .tools)
+            if initialChat.isEmpty { store.selectedReceipt = selection } else { embeddedReceipt = selection }
+          }
             .accessibilityIdentifier("tools.fileReceipt")
         }
       }.padding(20)
@@ -546,7 +558,7 @@ private struct ToolPayloadView: View {
           Label("复制完整原文", systemImage: "doc.on.doc")
         }.buttonStyle(.borderless)
       }.font(.caption)
-      Text(String(value[current])).font(.system(size: 12, design: .monospaced)).textSelection(
+      Text(String(value[current])).font(.system(.callout, design: .monospaced)).textSelection(
         .enabled
       ).frame(maxWidth: .infinity, alignment: .leading)
     }.padding(12).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))

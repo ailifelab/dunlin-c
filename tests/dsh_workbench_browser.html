@@ -1,0 +1,21 @@
+<!doctype html><html><head><meta charset="utf-8"><base href="/"><title>Dunlin C · 独立工作台渲染验收</title><link rel="stylesheet" href="/test-assets/runtime.css"><style>html,body{margin:0;background:#f4f5f7;color-scheme:light dark;font:13px -apple-system,BlinkMacSystemFont,sans-serif}#surface{padding:8px;overflow:auto;min-height:100vh;box-sizing:border-box}html,body{height:100%}button{font:inherit;cursor:pointer}#fixture-bar{padding:8px 12px;background:#e3e8ef;color:#283442;display:flex;gap:12px;align-items:center}#fixture-state{margin-left:auto}</style></head><body><nav id="fixture-bar" aria-label="隔离验收宿主"><span>隔离验收宿主 · 非 macOS 窗口</span><button id="fixture-run">运行已提交 C 任务</button><span id="fixture-state" role="status">加载中</span></nav><div id="surface"></div><script src="/test-assets/runtime.js"></script><script>
+(async()=>{
+ const init=__FIXTURE_INIT__,originalFetch=window.fetch.bind(window),surfaceID=crypto.randomUUID(),transfers=new Map();let registration,failed=false;
+ const host=async(route,data)=>{const result=await(await originalFetch(route,{method:'POST',headers:{'X-Dunlin-Owner':init.token,'Content-Type':'application/json'},body:JSON.stringify(data)})).json();if(!result.ok)throw Error(result.error);return result.value};
+ const status=document.getElementById('fixture-state');
+ const fault=error=>{status.textContent='验收错误：'+String(error?.message??error);if(!failed){failed=true;void host('/browser-fault',{plugin:init.client.package}).catch(console.error)}};
+ window.addEventListener('error',event=>fault(event.error??event.message));window.addEventListener('unhandledrejection',event=>fault(event.reason));
+ const request=async(command,args={})=>{
+  if(command==='download.begin'){if(args.bytes>16777216)throw Error('Download exceeds fixture limit');const id=crypto.randomUUID();transfers.set(id,{...args,offset:0,chunks:[]});return {id}}
+  if(command.startsWith('download.')){const row=transfers.get(args.id);if(command==='download.cancel'){transfers.delete(args.id);return true}if(command==='download.error')throw Error(args.message);if(!row)throw Error('Download missing');if(command==='download.append'){if(args.offset!==row.offset)throw Error('Download offset mismatch');const bytes=Uint8Array.from(atob(args.base64),c=>c.charCodeAt(0));row.chunks.push(bytes);row.offset+=bytes.length;return true}if(command!=='download.finish'||row.offset!==row.bytes)throw Error('Download incomplete');status.textContent='隔离下载已收到：'+row.name+' · '+row.offset+' 字节（原生保存面板另验）';transfers.delete(args.id);return {saved:true}}
+  return host('/invoke',{plugin:init.client.package,command,args:{...args,_surface:surfaceID}})
+ };
+ globalThis.__ModuleLoader__={load(value){if(registration)throw Error('Duplicate client');registration=value}};
+ await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/test-client/'+init.client.package+'.js';script.onload=resolve;script.onerror=()=>reject(Error('Client load failed'));document.head.append(script)});
+ DunlinDSH.installTransport(request);
+ const native=await request('native.snapshot',{});const surface=await DunlinDSH.createSurface('ui-chat',fault,{slot:'dunlin.workbench',theme:'light',package:init.client.package,config:init.client.config,native,request});
+ await surface.load(registration,init.client.package,init.client.config);surface.mount(document.getElementById('surface'));status.textContent='原始 React 界面 · C 已连接';
+ document.getElementById('fixture-run').onclick=async()=>{try{const result=await host('/native-agents-run',{});status.textContent='C 任务结果：'+result.runs.map(row=>row.run.status).join('、')}catch(error){fault(error)}};
+ window.addEventListener('pagehide',()=>{void surface.dispose();void request('ui.close',{})},{once:true});
+})().catch(error=>{document.getElementById('fixture-state').textContent='加载失败：'+error.message;console.error(error)});
+</script></body></html>

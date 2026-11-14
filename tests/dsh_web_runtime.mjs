@@ -33,4 +33,49 @@ assert.equal(activations,1);assert.equal(releases,1);
 await assert.rejects(concurrent.load(slow,'slow'),/surface disposed/);
 console.log('PASS concurrent load/disposal releases one activation and rejects duplicates.');
 
+
+
+const calls=[];
+const body=await sandbox.DunlinDSH.createSurface('owned-chat',()=>{},{
+  slot:'conversation.chat.reasoning.body',package:'owned-translator',config:{targetLanguage:'en'},reasoningText:'Visible source only',
+  request:async (command,args)=>{
+    if (command==='config.set') return {targetLanguage:args.value};
+    assert.equal(command,'reasoning.service');
+    calls.push(args);
+    return {ok:true,value:args.method==='limits'?{maxTextChars:80}:'已翻译'};
+  },
+});
+let translated,configuration;
+let configEvents=0,removeListener;
+await body.load({id:'owned-translator',factory:require=>({
+  inject:['slots','remote','remote.cotTranslation','configForms'],
+  async apply(ctx){
+    assert.equal(require('zod').z.string().parse('source'),'source');
+    const descriptors=[{namespace:'cotTranslation',method:'limits'}];
+    await assert.rejects(ctx.remote.$mount({package:'other-package',descriptors}),/Unsupported/);
+    await assert.rejects(ctx.remote.$mount({package:'owned-translator',descriptors:[{namespace:'host',method:'run'}]}),/Unsupported/);
+    const unmount=await ctx.remote.$mount({package:'owned-translator',descriptors});
+    ctx.effect(()=>unmount);
+    configuration=ctx.configForms.get();
+    removeListener=ctx.remote.$on('settings/document-updated',()=>{configEvents++});
+    const spec=await ctx.remote.cotTranslation.limits();
+    assert.equal(spec.value.maxTextChars,80);
+    translated=await ctx.remote.cotTranslation.translate({text:'Visible source only',sessionId:'wrong-chat'});
+    ctx.slots.inject('conversation.chat.reasoning.body',()=>ctx.slots.register({name:'conversation.chat.reasoning.body',id:'translated-body'},()=>null));
+  },
+})},'owned-translator');
+assert.equal(translated.value,'已翻译');
+assert.equal(configuration.getSnapshot().value.targetLanguage,'en');
+body.setConfiguration({targetLanguage:'zh'});assert.equal(configEvents,1);
+assert.equal(configuration.getSnapshot().value.targetLanguage,'zh');
+await configuration.set('targetLanguage','ja');assert.equal(configEvents,2);
+assert.equal(configuration.getSnapshot().value.targetLanguage,'ja');
+removeListener();body.setConfiguration({targetLanguage:'en'});assert.equal(configEvents,2);
+assert.equal(calls[1].request.sessionId,'owned-chat');
+assert.equal(body.entries('conversation.chat.reasoning.body').length,1);
+await body.remove('owned-translator');
+assert.equal(body.entries('conversation.chat.reasoning.body').length,0);
+await body.dispose();
+console.log('PASS published reasoning slot: owner session, translated response, registration and unload.');
+
 dom.window.close();

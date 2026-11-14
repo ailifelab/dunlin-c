@@ -27,7 +27,14 @@ J *dc_grants_request(dc_store *s,J *r){
  if(!strncmp(op,"grants.platform.",16))return dc_platform_grants_request(s,r);
  if(!strcmp(op,"grants.list")){
   const char *chat=str(r,"chat");long long cursor=json_object_get_int64(get(r,"before"));int limit=json_object_get_int(get(r,"limit"));if(limit<=0||limit>200)limit=200;
-  sqlite3_stmt *q=prep(s,"SELECT id,chat,tool,args,args_hash,allowed,status,started,COALESCE(decided,0),COALESCE(ended,0),wait_ms FROM grant_records WHERE (?='' OR chat=?) AND (?=0 OR id<?) ORDER BY id DESC LIMIT ?");if(!q)return reply(0,"storage_error",NULL);bind(q,1,chat);bind(q,2,chat);sqlite3_bind_int64(q,3,cursor);sqlite3_bind_int64(q,4,cursor);sqlite3_bind_int(q,5,limit);J *a=json_object_new_array();int rc;
+  const char *scope=str(r,"scope");
+  J *record=get(r,"recordID");
+  if(record&&(!json_object_is_type(record,json_type_int)||json_object_get_int64(record)<=0))return reply(0,"invalid_grant_record",NULL);
+  if(get(r,"scope")&&(!scope||(strcmp(scope,"active")&&strcmp(scope,"history"))))return reply(0,"invalid_grant_scope",NULL);
+  sqlite3_stmt *q=prep(s,"SELECT id,chat,tool,args,args_hash,allowed,status,started,COALESCE(decided,0),COALESCE(ended,0),wait_ms FROM grant_records WHERE (?1='' OR chat=?1) AND (?2=0 OR id<?2) AND (?3='' OR (?3='active')=(status IN('awaiting','issued_once'))) AND (?5 IS NULL OR id=?5) ORDER BY id DESC LIMIT ?4");
+  if(!q)return reply(0,"storage_error",NULL);
+  bind(q,1,chat);sqlite3_bind_int64(q,2,cursor);bind(q,3,scope);sqlite3_bind_int(q,4,limit);if(record)sqlite3_bind_int64(q,5,json_object_get_int64(record));
+  J *a=json_object_new_array();int rc;
   while((rc=sqlite3_step(q))==SQLITE_ROW){J *v=json_object_new_object();const char *keys[]={"id","chat","tool","arguments","argsHash","allowed","status","started","decided","ended","waitMs"};for(int i=0;i<11;i++)json_object_object_add(v,keys[i],i==5?json_object_new_boolean(sqlite3_column_int(q,i)):i>=7||i==0?json_object_new_int64(sqlite3_column_int64(q,i)):json_object_new_string((const char*)sqlite3_column_text(q,i)));json_object_array_add(a,v);}
   sqlite3_finalize(q);if(rc!=SQLITE_DONE){json_object_put(a);return reply(0,"storage_error",NULL);}return reply(1,NULL,a);
  }

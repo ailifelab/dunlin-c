@@ -49,9 +49,22 @@ struct FileReceiptPage: Decodable {
   let more: Bool
   let nextCursor: Int64
 }
+enum FileReceiptOrigin {
+  case chat, inspector, history, tools
+
+  var backLabel: String {
+    switch self {
+    case .chat: "返回聊天"
+    case .inspector: "返回文件变更"
+    case .history: "返回变更记录"
+    case .tools: "返回工具记录"
+    }
+  }
+}
 struct FileReceiptSelection: Identifiable {
   let id: String
   let chat: String
+  var origin: FileReceiptOrigin = .chat
 }
 struct FileRestoreResult: Decodable {
   let status: String
@@ -98,16 +111,15 @@ extension WorkspaceStore {
 }
 struct FileHistoryListView: View {
   @EnvironmentObject var store: WorkspaceStore
-  @Environment(\.dismiss) private var dismiss
+  let onClose: () -> Void
   @State private var chat = ""
-  @State private var selection: FileReceiptSelection?
   var body: some View {
     VStack(alignment: .leading, spacing: 18) {
       HStack {
         Text("文件变更记录").font(.title2.weight(.semibold))
         Spacer()
         Button("刷新") { store.reloadReceipts() }
-        Button("完成") { dismiss() }
+        Button("返回聊天", action: onClose).accessibilityIdentifier("fileHistory.back")
       }
       Text("当前聊天的受控文件工具与手动回退记录。命令产生的其他文件变化需另行核对，不能从这里推断全部工作区状态。").font(.callout).foregroundStyle(
         .secondary)
@@ -115,7 +127,7 @@ struct FileHistoryListView: View {
         LazyVStack(alignment: .leading, spacing: 10) {
           ForEach(store.receiptRows) { r in
             Button {
-              selection = FileReceiptSelection(id: r.id, chat: chat)
+              store.selectedReceipt = FileReceiptSelection(id: r.id, chat: chat, origin: .history)
             } label: {
               HStack(spacing: 14) {
                 Image(
@@ -145,20 +157,19 @@ struct FileHistoryListView: View {
         }
       }
       if !store.receiptError.isEmpty { Text(store.receiptError).foregroundStyle(.orange) }
-    }.padding(26).frame(width: 820, height: 650).onAppear {
+    }.padding(26).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).onAppear {
       chat = store.selected ?? ""
       store.reloadReceipts()
     }
-    .onChange(of: store.identityEpoch) { _, _ in dismiss() }.onChange(of: store.selected) {
-      _, value in if value != chat { dismiss() }
+    .onChange(of: store.identityEpoch) { _, _ in onClose() }.onChange(of: store.selected) {
+      _, value in if value != chat { onClose() }
     }
-    .sheet(item: $selection) { FileReceiptView(selection: $0) }
   }
 }
 struct FileReceiptView: View {
   let selection: FileReceiptSelection
+  let onBack: () -> Void
   @EnvironmentObject var store: WorkspaceStore
-  @Environment(\.dismiss) private var dismiss
   @State private var receipt: FileReceipt?
   @State private var candidate: FileReceipt?
   @State private var acknowledge = false
@@ -174,8 +185,26 @@ struct FileReceiptView: View {
       HStack {
         Label(receipt?.path ?? "文件变更", systemImage: "doc.text").font(.title3.weight(.semibold))
         Spacer()
-        if let receipt { Text(receipt.status).foregroundStyle(receipt.color) }
-        Button("完成") { dismiss() }.disabled(working)
+        if let receipt {
+          Text(receipt.status).foregroundStyle(receipt.color)
+          if let root = receipt.currentRoot, !root.isEmpty, receipt.currentState == "matches_after", receipt.afterExists {
+            Button("在编辑器打开") {
+              let file = URL(fileURLWithPath: root).appendingPathComponent(receipt.path).standardizedFileURL
+              guard file.resolvingSymlinksInPath().path == file.path,
+                let editor = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.TextEdit")
+              else { error = "文件位置已变化或未找到文本编辑器，请刷新后重试。"; return }
+              NSWorkspace.shared.open([file], withApplicationAt: editor, configuration: .init()) { _, failure in
+                if let failure { DispatchQueue.main.async { error = failure.localizedDescription } }
+              }
+            }.accessibilityIdentifier("receipt.editor")
+          }
+        }
+        if let receipt, candidate == nil {
+          Button(receipt.operation == "restore_file" ? "恢复回退前内容…" : "回退此修改…") { prepare() }
+            .disabled(working || store.busy || chatActive || receipt.currentState != "matches_after"
+              || (!(receipt.canRestore ?? false) && !acknowledge))
+            .accessibilityIdentifier("receipt.restore.preview")
+        }
       }
       if let receipt {
         Text("记录时项目：" + receipt.root).font(.caption).foregroundStyle(.secondary).textSelection(
@@ -202,14 +231,14 @@ struct FileReceiptView: View {
             ).accessibilityIdentifier("receipt.restore.confirm")
           }
         } else {
-          diff(
-            before: receipt.existed ? receipt.before ?? "" : "（当时文件不存在）",
-            after: receipt.afterExists ? receipt.after ?? "" : "（该次操作移除了文件）", beforeTitle: "修改前",
-            afterTitle: "修改后")
+          ReceiptLineDiff(receipt: receipt)
           if receipt.currentState != "matches_after" {
-            Label(currentState(receipt.currentState), systemImage: "exclamationmark.triangle").font(
-              .callout
-            ).foregroundStyle(.orange)
+            HStack {
+              Label(currentState(receipt.currentState), systemImage: "exclamationmark.triangle")
+                .font(.callout).foregroundStyle(.orange)
+              Spacer()
+              Button("重新加载差异") { reload() }.disabled(working).accessibilityIdentifier("receipt.reload")
+            }.padding(14).background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
           }
           if receipt.unknownAcknowledgementRequired == true {
             Toggle("我已核对实际文件，理解未决效果没有被判定成功、失败或撤销", isOn: $acknowledge).font(.callout)
@@ -224,13 +253,10 @@ struct FileReceiptView: View {
               Button("修改后…") { save(receipt.after ?? "", suffix: "after") }.disabled(
                 !receipt.afterExists)
             }
-            Button("刷新状态") { reload() }.disabled(working)
+            if receipt.currentState == "matches_after" {
+              Button("重新加载差异") { reload() }.disabled(working).accessibilityIdentifier("receipt.reload")
+            }
             Spacer()
-            Button(receipt.operation == "restore_file" ? "恢复回退前内容…" : "准备回退…") { prepare() }
-              .buttonStyle(.borderedProminent).disabled(
-                working || store.busy || chatActive || receipt.currentState != "matches_after"
-                  || (!(receipt.canRestore ?? false) && !acknowledge)
-              ).accessibilityIdentifier("receipt.restore.preview")
           }
           Text("回合 \(receipt.run.prefix(8)) · \(receipt.operation) · 修订 \(receipt.revision)").font(
             .caption.monospaced()
@@ -246,10 +272,13 @@ struct FileReceiptView: View {
       if !error.isEmpty {
         Text(error).foregroundStyle(.orange).font(.callout).textSelection(.enabled)
       }
-    }.padding(26).frame(width: 1050, height: 730).onAppear { reload() }
-      .onChange(of: store.identityEpoch) { _, _ in dismiss() }.onChange(of: store.selected) {
-        _, value in if value != selection.chat { dismiss() }
-      }
+      Button(action: onBack) {
+        Label(selection.origin.backLabel, systemImage: "chevron.backward")
+      }.buttonStyle(.borderless).disabled(working).accessibilityIdentifier("receipt.back")
+    }.padding(26).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+      .background(Color(nsColor: .windowBackgroundColor))
+      .onAppear { reload() }
+      .onChange(of: store.identityEpoch) { _, _ in onBack() }
   }
   private func currentState(_ value: String?) -> String {
     switch value {
@@ -351,5 +380,84 @@ struct FileReceiptView: View {
     do { try Data(text.utf8).write(to: url, options: .atomic) } catch {
       self.error = error.localizedDescription
     }
+  }
+}
+
+private struct ReceiptLineDiff: View {
+  let receipt: FileReceipt
+  private struct Line: Identifiable {
+    let id: Int
+    let number: Int
+    let marker: String
+    let text: String
+  }
+  @State private var lines: [Line] = []
+  @State private var ready = false
+  @State private var truncated = false
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      if ready {
+        if truncated {
+          Text("大文件仅预览两份快照的开头，可保存完整快照进行比较。").font(.caption)
+        } else {
+          Text("+\(lines.filter { $0.marker == "+" }.count)  −\(lines.filter { $0.marker == "−" }.count)")
+            .font(.caption.monospaced()).accessibilityLabel("变更行数")
+        }
+        ScrollView([.horizontal, .vertical]) {
+          LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(lines) { line in
+              HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text("\(line.number)").foregroundStyle(.secondary).frame(width: 42, alignment: .trailing)
+                Text(line.marker).frame(width: 15)
+                Text(line.text.isEmpty ? " " : line.text).textSelection(.enabled)
+              }.font(.system(.body, design: .monospaced)).padding(.vertical, 3).padding(.trailing, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(line.marker == "+" ? Color.green.opacity(0.12) : line.marker == "−" ? Color.red.opacity(0.12) : .clear)
+            }
+          }
+        }
+      } else { ProgressView("正在比较文件…") }
+    }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+      .padding(12).background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+      .task(id: receipt.beforeHash + ":" + receipt.afterHash) {
+        ready = false
+        let before = receipt.before ?? "", after = receipt.after ?? ""
+        let result = await Task.detached(priority: .userInitiated) { Self.compare(before, after) }.value
+        guard !Task.isCancelled else { return }
+        (lines, truncated) = result
+        ready = true
+      }
+  }
+
+  private nonisolated static func compare(_ before: String, _ after: String) -> ([Line], Bool) {
+    func split(_ text: String) -> [String] {
+      text.isEmpty ? [] : text.components(separatedBy: "\n")
+    }
+    let old = split(before), new = split(after)
+    let large = before.utf8.count + after.utf8.count > 131072 || old.count + new.count > 2000
+    var rows: [Line] = []
+    func add(_ index: Int, _ marker: String, _ text: String) {
+      rows.append(Line(id: rows.count, number: index + 1, marker: marker, text: text))
+    }
+    if large {
+      for (i,text) in old.prefix(100).enumerated() { add(i, "前", String(text.prefix(800))) }
+      for (i,text) in new.prefix(100).enumerated() { add(i, "后", String(text.prefix(800))) }
+      return (rows, true)
+    }
+    var removed = Set<Int>(), added = Set<Int>()
+    for change in new.difference(from: old) {
+      switch change {
+      case .remove(let offset, _, _): removed.insert(offset)
+      case .insert(let offset, _, _): added.insert(offset)
+      }
+    }
+    var i = 0, j = 0
+    while i < old.count || j < new.count {
+      if removed.contains(i) { add(i, "−", old[i]); i += 1 }
+      else if added.contains(j) { add(j, "+", new[j]); j += 1 }
+      else { add(j, " ", new[j]); i += 1; j += 1 }
+    }
+    return (rows, false)
   }
 }

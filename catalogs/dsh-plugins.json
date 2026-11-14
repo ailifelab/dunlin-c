@@ -132,6 +132,90 @@
           "adapterRevision": 2
         }
       }
+    },
+    {
+      "name": "dsh-pet",
+      "title": {
+        "zh": "蓝色大肥鱼"
+      },
+      "description": {
+        "zh": "点击蓝色大肥鱼切换 WebM 动画。"
+      },
+      "repository": {
+        "url": "https://github.com/PC2005-cloud/dsh-pet"
+      },
+      "metadata": {
+        "dunlin": {
+          "compatibility": "partial",
+          "installable": true,
+          "testedVersion": "0.4.8",
+          "reason": "macOS 已验证 0.4.8 和 0.1.2 的透明角色动画。余额查询和模型聊天尚未验证。",
+          "adapterRevision": 3
+        }
+      }
+    },
+    {
+      "name": "dsh-pet-sayaka",
+      "title": {
+        "zh": "美树沙耶香"
+      },
+      "description": {
+        "zh": "以表情图显示角色，在插件设置中切换显示与隐藏。"
+      },
+      "repository": {
+        "url": "https://github.com/KOGGUA-EDIT/dsh-pet-sayaka"
+      },
+      "metadata": {
+        "dunlin": {
+          "compatibility": "partial",
+          "installable": true,
+          "testedVersion": "1.1.1",
+          "reason": "已测试 1.1.1 的客户端交互。以表情图显示角色，在插件设置中切换显示与隐藏。 其他版本请谨慎安装。",
+          "adapterRevision": 3
+        }
+      }
+    },
+    {
+      "name": "dsh-pet-dafeiyu",
+      "title": {
+        "zh": "Fairy 桌宠"
+      },
+      "description": {
+        "zh": "可点击互动的手绘角色，点击后显示台词。"
+      },
+      "repository": {
+        "url": "https://github.com/SPECIALLOVE96/Fairy"
+      },
+      "metadata": {
+        "dunlin": {
+          "compatibility": "partial",
+          "installable": true,
+          "testedVersion": "0.1.0",
+          "reason": "已测试 0.1.0 的客户端交互。可点击互动的手绘角色，点击后显示台词。 其他版本请谨慎安装。",
+          "adapterRevision": 3
+        }
+      }
+    },
+    {
+      "name": "dsh-pet-live2d",
+      "title": {
+        "zh": "Live2D 看板娘"
+      },
+      "description": {
+        "zh": "可点击、拖动的 Live2D 角色，支持在独立桌面悬浮窗中显示。"
+      },
+      "repository": {
+        "url": "https://github.com/A8Chann/dsh-pet-live2d"
+      },
+      "metadata": {
+        "dunlin": {
+          "compatibility": "partial",
+          "installable": true,
+          "reason": "macOS 已验证模型渲染、点击、拖动、桌面悬浮和停用关闭。首次加载需要联网获取官方 Cubism Core。",
+          "adapterRevision": 3,
+          "testedVersion": "3.6.0"
+        }
+      }
     }
   ]
 }

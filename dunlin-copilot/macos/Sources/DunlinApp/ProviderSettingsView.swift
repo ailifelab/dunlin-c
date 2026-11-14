@@ -26,7 +26,7 @@ struct ProviderSettingsView: View {
             "添加一个服务商", systemImage: "network",
             description: Text("统一管理连接地址与凭据，再为它配置多个模型。已有独立模型可以继续使用。"))
         } else {
-          VStack(spacing: 0) {
+          VStack(spacing: 16) {
             ForEach(store.providers) { provider in
               Button {
                 editing = provider
@@ -60,12 +60,12 @@ struct ProviderSettingsView: View {
                   Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
                 }.padding(16).contentShape(Rectangle())
               }.buttonStyle(.plain).accessibilityIdentifier("provider.edit.\(provider.id)")
-              Divider()
+              .background(store.themeSurface,in:RoundedRectangle(cornerRadius:12))
             }
-          }.background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
+          }
         }
         Text("连接与密钥变更在下一回合生效。关联模型仍有未完成回合时，需先处理恢复状态。").font(.caption).foregroundStyle(.secondary)
-        Button("管理模型") { store.settingsSection = "模型" }
+        HStack {Button("导入配置…",action:store.importModel);Button("管理模型") { store.settingsSection = "模型" }}
       }.disabled(!store.configurationReady || store.configSaving)
     }
   }
@@ -77,6 +77,7 @@ struct ProviderEditor: View {
   @State private var draft: ProviderProfile
   private let original: ProviderProfile
   @State private var secret = ""
+  @State private var credentialIssue: ModelCredentialError?
   @State private var originalSecret: String?
   @State private var loaded = false
   @State private var error = ""
@@ -136,7 +137,18 @@ struct ProviderEditor: View {
             SecureField("API 密钥", text: $secret).disabled(!loaded).accessibilityIdentifier(
               "provider.key")
           }
-          if !loaded { Button("重新读取钥匙串", action: loadSecret) }
+          if let issue = credentialIssue {
+            HStack(spacing: 14) {
+              VStack(alignment: .leading, spacing: 5) {
+                Label(issue.title, systemImage: "lock.trianglebadge.exclamationmark").font(.headline)
+                  .accessibilityIdentifier("provider.key.issue")
+                Text(issue.localizedDescription).font(.callout)
+              }
+              Spacer()
+              Button("重新授权", action: loadSecret).accessibilityIdentifier("provider.key.retry")
+            }
+            .padding(16).background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
+          }
         }
       }.textFieldStyle(.roundedBorder).controlSize(.large).disabled(testing)
       Text(
@@ -144,6 +156,16 @@ struct ProviderEditor: View {
           ? "Ollama 原生 API 根地址通常以 /api 结尾。" : "使用 API Key 时，明文仅存入 macOS 钥匙串；配置保留引用。"
       )
       .font(.caption).foregroundStyle(.secondary)
+      if secretChanged {
+        HStack(spacing:14) {
+          VStack(alignment:.leading,spacing:5) {
+            Label("凭据已更改",systemImage:"key").font(.headline)
+            Text("保存后从下一次请求开始使用新凭据。").font(.callout)
+          }
+          Spacer()
+          Button("撤销更改"){secret=originalSecret ?? ""}
+        }.padding(16).background(Color.orange.opacity(0.10),in:RoundedRectangle(cornerRadius:10))
+      }
       if let reference = draft.keyEnvironment {
         Text("导入的凭据引用：\(reference)。请单独填写密钥，不会读取环境变量。").font(.caption).foregroundStyle(.secondary)
       }
@@ -286,17 +308,21 @@ struct ProviderEditor: View {
     if draft.authentication == "none" {
       secret = ""
       originalSecret = nil
+      credentialIssue = nil
       loaded = true
       return
     }
     switch readCredential(draft.keychainID) {
     case .success(let value):
+      credentialIssue = nil
       originalSecret = value
       secret = value ?? ""
       loaded = true
       error = ""
     case .failure(let failure):
-      error = failure.localizedDescription
+      originalSecret = nil
+      secret = ""
+      credentialIssue = failure
       loaded = false
     }
   }

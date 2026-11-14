@@ -96,9 +96,14 @@ struct ProviderConnectionTest: Decodable, Identifiable {
     }
   }
 }
+struct ConfigImportSource: Decodable {
+  let path: String
+  let api: String
+}
 struct ConfigImportPlan: Decodable, Identifiable {
   var id: String { plan }
   let plan: String
+  let sourceProviders: [String: ConfigImportSource]?
   let revision: Int64
   let models: [ModelProfile]
   let providers: [ProviderProfile]
@@ -165,8 +170,8 @@ extension WorkspaceStore {
     modelIssues = value.modelIssues ?? []
     configRevision = value.revision
     configurationReady = true
-    if !profiles.contains(where: { $0.id == profileID }) { profileID = profiles.first?.id ?? "" }
-    if !profiles.contains(where: { $0.id == defaultProfileID }) {
+    if !profileID.isEmpty && !profiles.contains(where: { $0.id == profileID }) { profileID = profiles.first?.id ?? "" }
+    if !defaultProfileID.isEmpty && !profiles.contains(where: { $0.id == defaultProfileID }) {
       defaultProfileID = profiles.first?.id ?? ""
     }
   }
@@ -205,7 +210,12 @@ extension WorkspaceStore {
             completion(false, self.configurationError(reply?.error))
             return
           }
+          let firstManualModel = self.profiles.isEmpty ? value.models.first?.id : nil
           self.acceptConfiguration(value)
+          if let firstManualModel {
+            self.defaultProfileID = firstManualModel
+            self.profileID = firstManualModel
+          }
           self.saveSettings()
           completion(true, "")
         }
@@ -276,18 +286,22 @@ extension WorkspaceStore {
     default: return "配置未应用：\(value ?? "本地服务暂时不可用")"
     }
   }
-  func previewConfiguration(_ source: String) {
+  func previewConfiguration(_ source: String, reviewFirst: Bool = false) {
     guard !busy, !configSaving, configurationReady else {
-      error = "配置服务尚未就绪。"
+      configImportIssue = "配置服务尚未就绪。"
       return
     }
+    let request=UUID()
+    configImportRequest=request
     workspaceRequest(["op": "config.preview", "source": source], as: ConfigImportPlan.self) {
       result in
+      guard self.configImportRequest == request else { return }
       if result.ok, let plan = result.data {
-        self.configImportPlan = plan
+        self.configImportIssue = ""
+        if reviewFirst { self.configImportReview=plan } else { self.configImportPlan=plan }
       } else {
         self.connectionStatus = self.configurationError(result.error, diagnostic: result.diagnostic)
-        self.error = self.connectionStatus
+        self.configImportIssue = self.connectionStatus
       }
     }
   }
@@ -304,6 +318,7 @@ extension WorkspaceStore {
       if result.ok, let value = result.data {
         self.acceptConfiguration(value)
         self.saveSettings()
+        self.resetImportReview()
         self.connectionStatus = "已导入 \(plan.models.count) 个新模型；凭据需单独填写，连接尚未测试。"
         completion(nil)
       } else {

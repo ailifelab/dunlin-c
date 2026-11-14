@@ -3,7 +3,7 @@ import Foundation
 enum ChatTextSize: String, Codable, CaseIterable {
   case small, standard, large
   var title: String { switch self { case .small: return "较小"; case .standard: return "标准"; case .large: return "较大" } }
-  var points: Double { switch self { case .small: return 14; case .standard: return 16; case .large: return 18 } }
+  var points: Double { switch self { case .small: return 13; case .standard: return 14; case .large: return 18 } }
 }
 enum ChatSendKey: String, Codable, CaseIterable {
   case returnKey = "return"

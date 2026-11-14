@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include "../../desktop/file_history.h"
+#include "../../desktop/chat_workspace.h"
 #include "../../desktop/project_files.h"
 #include "../../desktop/trajectory.h"
 #include "dunlin/content_hash.h"
@@ -101,7 +102,22 @@ static J *list(dc_store *s,J *r,const char *chat){
  while((rc=sqlite3_step(q))==SQLITE_ROW){if(count++==50){more=1;break;}next=sqlite3_column_int64(q,0);json_object_array_add(items,record_row(q));}sqlite3_finalize(q);if(rc!=SQLITE_DONE&&rc!=SQLITE_ROW){json_object_put(items);return fail("file_history_storage_error");}J *v=json_object_new_object();json_object_object_add(v,"items",items);json_object_object_add(v,"more",json_object_new_boolean(more));json_object_object_add(v,"nextCursor",json_object_new_int64(next));return reply(1,NULL,v);
 }
 static char *restore_root(dc_store *s,const char *chat,J *entry){
- J *project=dc_chat_project(s,chat);const char *path=str(project,"path");char *root=project&&json_object_get_boolean(get(project,"available"))&&eq(str(entry,"device"),str(project,"device"))&&eq(str(entry,"inode"),str(project,"inode"))&&root_matches(path,str(entry,"device"),str(entry,"inode"))?strdup(path):NULL;json_object_put(project);return root;
+ J *binding;
+ const char *recorded_project=str(entry,"project");
+ if(recorded_project&&*recorded_project){
+  binding=dc_chat_project(s,chat);
+  if(!eq(str(binding,"id"),recorded_project)){json_object_put(binding);return NULL;}
+ }else{
+  binding=dc_chat_workspace_view(s,chat);
+  /* An ordinary chat receipt stays bound to its original workspace. */
+  const char *project=str(binding,"project");
+  if(!project||*project){json_object_put(binding);return NULL;}
+ }
+ const char *path=str(binding,"path");
+ int same=binding&&json_object_get_boolean(get(binding,"available"))
+     &&eq(str(entry,"device"),str(binding,"device"))&&eq(str(entry,"inode"),str(binding,"inode"))
+     &&root_matches(path,str(entry,"device"),str(entry,"inode"));
+ char *root=same?strdup(path):NULL;json_object_put(binding);return root;
 }
 static J *detail(dc_store *s,const char *chat,const char *id,int preview,int acknowledge){
  J *entry=record(s,chat,id);if(!entry)return fail("file_receipt_not_found");char *before=load_blob(s,str(entry,"beforeHash")),*after=json_object_get_boolean(get(entry,"afterExists"))?load_blob(s,str(entry,"afterHash")):strdup("");

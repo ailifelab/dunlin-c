@@ -2,69 +2,81 @@ import SwiftUI
 
 struct ConfigImportView: View {
   @EnvironmentObject var store: WorkspaceStore
-  @Environment(\.dismiss) private var dismiss
   let plan: ConfigImportPlan
   @State private var error = ""
+  private func protocolLabel(_ value: String) -> String {
+    switch value {
+    case "chat": return "Chat Completions"
+    case "responses": return "Responses"
+    case "anthropic": return "Anthropic Messages"
+    case "ollama": return "Ollama"
+    case "gemini": return "Gemini"
+    default: return value
+    }
+  }
+  private func mapping(_ source: String, _ destination: String) -> some View {
+    HStack(alignment: .firstTextBaseline, spacing: 18) {
+      Text(source).font(.callout.monospaced())
+        .frame(maxWidth: .infinity, alignment: .leading)
+      Text(destination).font(.callout)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .accessibilityElement(children: .combine)
+  }
   var body: some View {
     VStack(alignment: .leading, spacing: 20) {
-      Text("确认导入配置").font(.title2.weight(.semibold))
-      Text(
-        "将新增 \(plan.providers.count) 个服务商和 \(plan.models.count) 个模型。现有路由与聊天保留。预览在 \(plan.lifetimeSeconds / 60) 分钟内有效。"
-      ).foregroundStyle(.secondary)
-      List {
-        if !plan.providers.isEmpty {
-          Section("新服务商") {
-            ForEach(plan.providers) { provider in
-              VStack(alignment: .leading, spacing: 5) {
-                HStack {
-                  Text(provider.name).fontWeight(.medium)
-                  Spacer()
-                  Text(provider.routeID ?? provider.id).font(.caption.monospaced()).foregroundStyle(
-                    .secondary)
-                }
-                Text(provider.endpoint).font(.caption).foregroundStyle(.secondary)
-                if let reference = provider.keyEnvironment {
-                  Text("凭据引用：\(reference) · 稍后关联钥匙串").font(.caption).foregroundStyle(.secondary)
-                }
-              }.padding(.vertical, 5)
-            }
+      Label("静态检查通过", systemImage: "checkmark.circle.fill")
+        .font(.callout.weight(.medium)).foregroundStyle(store.themeTint)
+        .padding(.horizontal, 12).padding(.vertical, 7)
+        .background(store.themeTint.opacity(0.10), in: Capsule())
+      Text("字段映射 · 原配置 → Dunlin C").font(.headline)
+      VStack(alignment: .leading, spacing: 12) {
+        ForEach(plan.providers) { provider in
+          let source = plan.sourceProviders?[provider.id]
+          mapping(source?.path ?? "服务商", "新服务商：" + provider.name + " · " + (provider.routeID ?? provider.id))
+          if let source {
+            mapping(source.api, "协议：" + protocolLabel(provider.protocolName))
+          }
+          mapping("连接地址", provider.endpoint)
+          if let reference = provider.keyEnvironment {
+            mapping("apiKeyEnv = " + reference, "不读取环境变量，稍后关联钥匙串")
+          }
+          ForEach(Array(plan.models.filter { $0.providerID == provider.id }.enumerated()), id: \.element.id) { index, model in
+            mapping(source == nil ? model.model : "models[\(index)].id = \(model.model)", "新模型：" + model.name)
           }
         }
-        Section("新模型") {
-          ForEach(plan.models) { model in
-            VStack(alignment: .leading, spacing: 5) {
-              HStack {
-                Text(model.name).fontWeight(.medium)
-                Spacer()
-                Text(model.protocolName).foregroundStyle(.secondary)
-              }
-              Text(model.model).font(.callout)
-              Text(model.endpoint).font(.caption).foregroundStyle(.secondary)
-            }.padding(.vertical, 5)
-          }
+        ForEach(plan.models.filter { $0.providerID == nil }) { model in
+          mapping(model.model, "新模型：" + model.name)
+          mapping(protocolLabel(model.protocolName), model.endpoint)
         }
         if !plan.warnings.isEmpty {
-          Section("导入说明") {
+          VStack(alignment: .leading, spacing: 6) {
+            Text("导入说明").font(.headline)
             ForEach(Array(plan.warnings.enumerated()), id: \.offset) { _, warning in
               Text(configImportWarning(warning)).font(.callout).foregroundStyle(.secondary)
             }
           }
         }
-      }.listStyle(.inset)
-      Text("文件中的密钥值不会导入，也不会在预览期间连接服务。导入后请填写密钥并单独测试连接。").font(.caption).foregroundStyle(.secondary)
+      }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
+        .background(store.themeSurface, in: RoundedRectangle(cornerRadius: 10))
+      VStack(alignment: .leading, spacing: 6) {
+        Text("导入后仍需完成连接设置").font(.headline)
+        Text("已有聊天与默认模型保留原配置。导入后可关联凭据并单独测试新模型。").font(.callout).foregroundStyle(.secondary)
+      }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
       if !error.isEmpty {
         Text(error).foregroundStyle(.red).accessibilityIdentifier("config.import.error")
       }
       HStack {
         Spacer()
-        Button("取消") { dismiss() }
+        Button("返回检查") { store.configImportPlan = nil }.keyboardShortcut(.cancelAction).accessibilityIdentifier("config.import.back")
         Button(store.configSaving ? "正在应用…" : "确认导入") {
           store.applyConfiguration(plan) { message in
-            if let message { error = message } else { dismiss() }
+            if let message { error = message }
           }
         }.buttonStyle(.borderedProminent).disabled(store.configSaving).accessibilityIdentifier(
           "config.import.confirm")
       }
-    }.padding(28).frame(width: 720, height: 620)
+    }.frame(maxWidth: .infinity, alignment: .topLeading)
   }
 }

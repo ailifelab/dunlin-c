@@ -57,7 +57,7 @@ try:
   original=(work/'greeting.txt').read_bytes();assert original==b'Actual switch fixture effect';rows=value(lib.dc_messages(db,b'chat'));assert all(m.get('modelName')=='fixture-a' for m in rows if m['role']=='assistant')
   with fixture_sqlite.connect(state/'conversations.sqlite') as sql:source=sql.execute("SELECT state FROM chats WHERE id='chat'").fetchone()[0]
   before_requests=len(requests);plan=preview()['data'];assert plan['messageCount']==6 and plan['toolResults']==2 and plan['fileReceipts']==1 and plan['contextKnown'] and plan['contextSelected']>0 and plan['canSwitch'] and plan['imageCount']==0,plan
-  assert plan['currentID']=='a' and plan['targetID']=='b' and plan['historyHash']==hashlib.sha256(source.encode()).hexdigest() and plan['contextFit']=='unmeasured'
+  assert plan['currentID']=='a' and plan['targetID']=='b' and plan['historyHash']==hashlib.sha256(source.encode()).hexdigest() and plan['contextFit']=='within_history_estimate' and 0<plan['historyEstimateBytes']<plan['inputBudget'] and plan['estimateKind']=='portable-history-utf8-bytes'
   assert read('chats.model.preview',chat='chat',target='b',revision=registry['revision'])['data']==plan
   assert not read('chats.model.apply',chat='chat',target='b',revision=registry['revision'],currentID='a',historyHash=plan['historyHash'])['ok']
   assert len(requests)==before_requests and ok('chats.metadata',id='chat')['model']=='a' # preview/cancel is inert
@@ -100,6 +100,18 @@ try:
   model=dict(model,inputModalities=['text','image']);registry=ok('config.save',revision=registry['revision'],models=[model,second],providers=[])
   plan=preview(target='a',chat='image')['data'];assert plan['canSwitch'] and apply(plan)['ok']
   ollama=dict(second,id='ollama',protocolName='ollama',inputModalities=['text','image']);registry=ok('config.save',revision=registry['revision'],models=[model,second,ollama],providers=[]);plan=preview(target='ollama',chat='image')['data'];assert not plan['canSwitch'] and plan['reason']=='model_switch_image_protocol_unsupported' and apply(plan)['error']==plan['reason']
+  small=dict(model,id='small',contextLimit=1024,contextBudget=1024,maxOutput=128,contextReserve=128)
+  unknown={k:v for k,v in model.items() if k not in ('contextLimit','contextBudget')};unknown['id']='unmeasured'
+  registry=ok('config.save',revision=registry['revision'],models=[model,second,small,unknown],providers=[])
+  assert lib.dc_add_chat(db,b'long',b'Long',str(work).encode())
+  long_cfg=ok('config.model',id='b',revision=registry['revision']);long_cfg['stream']=False
+  assert value(lib.dc_run_with_secret(db,b'long',enc(long_cfg),('已确认原文'*300).encode(),None,b''))['status']=='completed'
+  seen=len(requests);before=value(lib.dc_messages(db,b'long'))
+  small_plan=preview(target='small',chat='long')['data']
+  assert small_plan['contextFit']=='requires_compaction' and small_plan['historyEstimateBytes']>=len(('已确认原文'*300).encode())>small_plan['inputBudget']==768
+  assert preview(target='unmeasured',chat='long')['data']['contextFit']=='unmeasured'
+  assert len(requests)==seen and value(lib.dc_messages(db,b'long'))==before
+  print('PASS portable UTF-8 history estimate exceeds known small input budget; unknown capacity stays unmeasured; preview preserves original')
   assert not errors;lib.dc_close(db)
   print('PASS image history requires explicit supported model/protocol capability; canonical image is never silently dropped (image fixtures do not claim actual decoding/vision)')
 finally:server.shutdown();server.server_close();worker.join(2)

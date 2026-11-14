@@ -15,3 +15,22 @@ with tempfile.TemporaryDirectory(prefix='dunlin-tar-') as tmp:
   finally:os.close(fd)
  assert not (root/'outside').exists()
  print('PASS real C tar ordinary content, traversal/absolute/link/manifest overwrite/checksum/truncation/oversize rejection')
+
+# npm uses local PAX records even when the UTF-8 filename fits in the header.
+def pax_record(field):
+ size=len(field)+3
+ while True:
+  record=str(size).encode()+b' '+field+b'\n'
+  if len(record)==size:return record
+  size=len(record)
+name='package/鲸鱼.webm'
+with tempfile.TemporaryDirectory(prefix='dunlin-npm-pax-') as tmp:
+ for i,(values,expected) in enumerate([([b'path='+name.encode(),b'size=9'],True),([b'path=package/other'],False),([b'size=8'],False),([b'linkpath=/tmp/x'],False)]):
+  data=b''.join(map(pax_record,values))
+  header=tarfile.TarInfo('PaxHeader/local');header.type=tarfile.XHDTYPE;header.size=len(data)
+  raw=header.tobuf()+data+b'\0'*(-len(data)%512)+tar(name)
+  folder=pathlib.Path(tmp)/str(i);folder.mkdir();fd=os.open(folder,os.O_RDONLY|os.O_DIRECTORY)
+  try:assert bool(fn(fd,raw,len(raw)))==expected
+  finally:os.close(fd)
+  if expected:assert (folder/'鲸鱼.webm').read_bytes()==b'export {}'
+print('PASS matching Unicode PAX names and sizes, mismatched metadata and link overrides refused')

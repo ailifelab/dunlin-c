@@ -50,25 +50,37 @@ struct ModelProfile: Codable, Identifiable, Hashable {
     return dc_context_budget(&caps, &result) == DC_CONTEXT_VALID ? result : nil
   }
   var contextEditorRange: dc_context_range? {
-    guard let bounds = ModelContextBudget.limits(contextCapabilities) else { return nil }
-    var caps = contextCapabilities
-    let requested = contextBudget.flatMap { $0 == 0 ? nil : $0 } ?? Int(bounds.recommended)
-    caps.selected_limit = UInt64(ModelContextBudget.choice(requested, within: bounds))
-    var result = dc_context_range()
-    return dc_context_budget(&caps, &result) == DC_CONTEXT_VALID ? result : nil
+    ModelContextBudget.preview(contextCapabilities, choice: contextBudget == 0 ? nil : contextBudget)
   }
   @discardableResult mutating func setEditorContextBudget(_ value: Int) -> Bool {
-    guard let bounds = ModelContextBudget.limits(contextCapabilities) else { return false }
-    contextBudget = ModelContextBudget.choice(value, within: bounds)
+    guard let range = ModelContextBudget.preview(contextCapabilities, choice: value) else { return false }
+    contextBudget = Int(range.selected)
     return true
   }
 }
 struct ContextPreferences: Codable, Equatable {
+  var shortenToolOutput: Bool?
+  var omitHistoryImages: Bool?
+  var external: [String:String]?
   var strategy = "semantic"
   var automatic = true
   var threshold = 0.8
   var retainTurns = 2
   var summaryOutput = 1024
+  func request(for p:ModelProfile, budget:dc_context_range) -> [String:Any] {
+    var policy: [String:Any] = [
+      "modelLimit": p.contextLimit ?? 0, "deploymentLimit": p.deploymentLimit ?? 0,
+      "selectedLimit": Int(budget.selected), "outputLimit": p.effectiveOutputLimit,
+      "requestedOutput": p.maxOutput, "reserve": p.contextReserve ?? 512,
+      "strategy": p.compactionStrategy ?? self.strategy,
+      "automatic": self.automatic,
+      "shortenToolOutput": shortenToolOutput == true, "omitHistoryImages": omitHistoryImages == true,
+      "threshold": self.threshold, "retainTurns": self.retainTurns,
+      "summaryOutput": min(self.summaryOutput, Int(budget.output)),
+    ]
+    if policy["strategy"] as? String == "external" { policy["external"] = self.external }
+    return policy
+  }
 }
 struct KnowledgePreferences: Codable, Equatable {
   var memory = false
@@ -209,8 +221,9 @@ struct Message: Codable, Identifiable {
   var modelName: String? = nil
   var attachment: ChatAttachment? = nil
   var media: [String:String]? = nil
+  var reference: [String:String]? = nil
   enum CodingKeys: String, CodingKey {
-    case sequence, sourceHash, observation, role, content, reasoning, reasoningKind, reasoningUnavailable, modelName, attachment, media
+    case sequence, sourceHash, observation, role, content, reasoning, reasoningKind, reasoningUnavailable, modelName, attachment, media, reference
   }
 }
 struct ChatCommit: Decodable {
@@ -224,16 +237,25 @@ struct SearchHit: Codable, Identifiable {
   let chat: String
   let sequence: Int
   let text: String
+  let role: String
+  let time: Int64?
+  let matchSnippet: String
+
+  var matchedTerms: [String] {
+    var remaining = matchSnippet[...]
+    var terms: [String] = []
+    while let open = remaining.firstIndex(of: "["),
+      let close = remaining[remaining.index(after: open)...].firstIndex(of: "]") {
+      for word in remaining[remaining.index(after: open)..<close].split(separator: " ") {
+        let term = String(word)
+        if !terms.contains(term) { terms.append(term) }
+      }
+      remaining = remaining[remaining.index(after: close)...]
+    }
+    return terms
+  }
 }
 
-struct FileChange: Identifiable, Codable {
-  var id = UUID()
-  var path: String
-  var before: String
-  var after: String
-  var relativePath: String? = nil
-  var existed: Bool
-}
 struct GrantRecord: Identifiable {
   var chat: String
   var id = UUID()
@@ -325,6 +347,7 @@ struct ModelProbe: Decodable {
 }
 
 struct HistoryIndexStatus: Decodable {
+  let automaticQuota: Bool
   let paused: Bool
   let available: Bool
   let bytes: Int64

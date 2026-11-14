@@ -11,6 +11,9 @@ struct SkillsView: View {
   @State private var shop=false
   @State private var library=false
   @State private var libraryQuery=""
+  @State private var librarySelection = Set<String>()
+  @State private var applyingSelection=false
+  @State private var versionList: SkillRow?
   @State private var versionReview: VersionReview?
   private struct VersionReview {
     let skill: SkillRow
@@ -21,11 +24,18 @@ struct SkillsView: View {
     scope == "global" ? rows : rows.filter { $0.origin != "none" || $0.scopeMode != "inherit" }
   }
   var scopeLabel: String { scope == "global" ? "全局" : scope == "project" ? "本项目":"本对话" }
+  private var scopeName: String {
+    switch scope {
+    case "global": return (store.currentIdentity?.name ?? "当前身份") + " · 全局"
+    case "project": return store.projects.first(where: { $0.id == scopeID })?.name ?? scopeLabel
+    default: return store.chats.first(where: { $0.id == scopeID })?.title ?? scopeLabel
+    }
+  }
   var body: some View {
     VStack(alignment:.leading,spacing:20) {
       HStack {
         VStack(alignment:.leading,spacing:7) {
-          Text("\(scopeLabel) Skills").font(.title3.weight(.semibold))
+          Text(scope == "global" ? "已下载  \(configured.count)" : scope == "project" ? "在这个项目中使用" : "这段聊天的 Skills").font(.headline)
           Text(scope == "global" ? "当前身份已下载的本地 Skills，下载后需单独启用。":"继承上层配置，可为\(scopeLabel)单独关闭、启用或锁定版本。")
             .font(.callout).foregroundStyle(.secondary)
         }
@@ -33,7 +43,7 @@ struct SkillsView: View {
         if scope == "global" {
           Button("导入本地 Skills…",action:importLocal).accessibilityIdentifier("skills.import")
         } else {
-          Button("从本地仓库选择") { library=true }.accessibilityIdentifier("skills.library")
+          Button("从本地仓库选择") { librarySelection=[];libraryQuery="";library=true }.accessibilityIdentifier("skills.library")
         }
         Button("浏览商店") { shop=true }.accessibilityIdentifier("skills.shop")
       }
@@ -60,11 +70,8 @@ struct SkillsView: View {
                 Button("恢复继承") { bind(skill,mode:"inherit",version:skill.version) }
                   .disabled(skill.scopeMode == "inherit").accessibilityIdentifier("skill.inherit.\(skill.package)")
               }
-              Picker("版本",selection:Binding(get:{skill.version},set:{version in confirmVersion(skill,version:version)})) {
-                ForEach(skill.versions,id:\.version) { version in
-                  Text(version.version + (version.quarantined ? " · 已隔离":"")).tag(version.version)
-                }
-              }.fixedSize().accessibilityIdentifier("skill.version.\(skill.package)")
+              Button("版本 · " + skill.version) { versionList = skill }
+                .accessibilityIdentifier("skill.version.\(skill.package)")
               Spacer()
               Button("更新") { update(skill) }.accessibilityIdentifier("skill.update.\(skill.package)")
               Button("详情") { detail=skill.selected }
@@ -81,8 +88,40 @@ struct SkillsView: View {
       if !error.isEmpty {Text(error).foregroundStyle(.red).textSelection(.enabled)}
       Text("Skills 提供操作说明，不增加文件、命令或网络权限。运行中的回合使用启动时冻结的版本。").font(.caption).foregroundStyle(.secondary)
     }.disabled(store.busy).onAppear(perform:reload).onChange(of:store.identityEpoch) {_,_ in
-      rows=[];error="";detail=nil;versionReview=nil;library=false;shop=false;reload()
+      rows=[];error="";detail=nil;versionReview=nil;versionList=nil;library=false;librarySelection=[];applyingSelection=false;shop=false;reload()
     }
+      .sheet(item: $versionList) { skill in
+        VStack(alignment: .leading, spacing: 18) {
+          Text((skill.selected?.name ?? skill.package) + " · 版本").font(.title2.weight(.semibold))
+          Text("当前范围：" + scopeName).foregroundStyle(.secondary)
+          ScrollView {
+            ForEach(skill.versions, id: \.version) { candidate in
+              HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                  Text(candidate.version).font(.headline)
+                  Text(candidate.quarantined ? "已隔离" : "已下载").foregroundStyle(.secondary)
+                }
+                Spacer()
+                if candidate.version == skill.version { Text("当前版本").foregroundStyle(.secondary) }
+                else {
+                  Button("使用此版本") {
+                    versionList = nil
+                    confirmVersion(skill, version: candidate.version)
+                  }.disabled(candidate.quarantined).accessibilityIdentifier("skill.use." + candidate.version)
+                }
+              }.padding(.vertical,12)
+              Divider()
+            }
+          }
+          Text(scope == "global" ? "全局更新在下一回合生效。已锁定版本的项目和聊天继续使用各自的版本。" : "版本覆盖只对" + scopeLabel + "生效，下回合开始使用。")
+            .font(.callout).foregroundStyle(.secondary)
+          HStack {
+            Button("检查更新") { versionList = nil; update(skill) }
+            Spacer()
+            Button("完成") { versionList = nil }
+          }
+        }.padding(28).frame(width:620,height:420)
+      }
       .alert("切换 Skills 版本？",isPresented:Binding(get:{versionReview != nil},set:{if !$0 {versionReview=nil}}),presenting:versionReview) { review in
         Button("应用版本") {
           guard review.epoch == store.identityEpoch else { return }
@@ -97,7 +136,7 @@ struct SkillsView: View {
         if let detail {
           VStack(alignment:.leading,spacing:18) {
             HStack {Text(detail.name + " · " + detail.version).font(.headline);Spacer();Button("完成"){self.detail=nil}}
-            ScrollView {Text(detail.body).font(.system(size:13,design:.monospaced)).textSelection(.enabled).frame(maxWidth:.infinity,alignment:.leading)}
+            ScrollView {Text(detail.body).font(.system(.body, design: .monospaced)).textSelection(.enabled).frame(maxWidth:.infinity,alignment:.leading)}
             Text("内容摘要 · \(detail.digest)").font(.caption2.monospaced()).textSelection(.enabled)
           }.padding(24).frame(width:780,height:600)
         }
@@ -107,33 +146,60 @@ struct SkillsView: View {
       }
       .sheet(isPresented:$library,onDismiss:reload) {
         VStack(alignment:.leading,spacing:20) {
-          HStack { Text("从本地仓库选择").font(.title2.weight(.semibold));Spacer();Button("完成"){library=false} }
-          Text("只为\(scopeLabel)应用所选版本，其他范围保持原配置。").foregroundStyle(.secondary)
+          Text("从本地仓库添加").font(.title2.weight(.semibold))
+          Text("添加到「" + scopeName + "」，其他范围保留原有配置。").foregroundStyle(.secondary)
           HStack {
-            TextField("查找已下载的 Skills",text:$libraryQuery).textFieldStyle(.roundedBorder)
+            TextField("搜索名称、描述或来源",text:$libraryQuery).textFieldStyle(.roundedBorder)
             Button("导入本地目录…",action:importLocal)
           }
           ScrollView {
             LazyVStack(alignment:.leading,spacing:14) {
-              ForEach(rows.filter { libraryQuery.isEmpty || ($0.package + ($0.selected?.description ?? "")).localizedCaseInsensitiveContains(libraryQuery) }) { skill in
-                HStack(spacing:16) {
+              ForEach(filteredLibrary) { skill in
+                Toggle(isOn:Binding(get:{librarySelection.contains(skill.id)},set:{enabled in
+                  if enabled {librarySelection.insert(skill.id)} else {librarySelection.remove(skill.id)}
+                })) {
                   VStack(alignment:.leading,spacing:6) {
                     Text(skill.selected?.name ?? skill.package).font(.headline)
                     Text(skill.selected?.description ?? "").font(.caption).foregroundStyle(.secondary)
-                    Text(skill.version + " · " + (skill.source.hasPrefix("catalog:") ? "商店下载" : "本地导入"))
+                    Text(skill.version + " · " + (skill.blocked ? "已隔离" : skill.enabled ? "已启用 · " + origin(skill.origin) : "已下载"))
                       .font(.caption).foregroundStyle(.secondary)
                   }.frame(maxWidth:.infinity,alignment:.leading)
-                  Button("在\(scopeLabel)启用") {
-                    bind(skill,mode:"enable",version:skill.version) { library=false }
-                  }.disabled(skill.blocked).accessibilityIdentifier("skill.library.add.\(skill.package)")
-                }.padding(16).background(Color.primary.opacity(0.035),in:RoundedRectangle(cornerRadius:10))
+                }.toggleStyle(.checkbox).disabled(skill.blocked || applyingSelection)
+                  .accessibilityIdentifier("skill.library.add."+skill.package)
+                  .padding(12).background(store.themeSurface,in:RoundedRectangle(cornerRadius:10))
               }
-              if rows.isEmpty {ContentUnavailableView("本地库还没有 Skills",systemImage:"square.stack.3d.up",description:Text("先导入本地目录或从商店下载。"))}
+              if filteredLibrary.isEmpty {
+                ContentUnavailableView(rows.isEmpty ? "本地库还没有 Skills":"没有匹配的 Skills",systemImage:"square.stack.3d.up")
+              }
             }
           }
+          HStack {
+            Text("已选 \(librarySelection.count) 项").foregroundStyle(.secondary)
+            Spacer()
+            Button("取消"){library=false}.keyboardShortcut(.cancelAction)
+            Button(scope == "project" ? "添加到项目":"添加到聊天", action:applySelection)
+              .buttonStyle(.borderedProminent).disabled(librarySelection.isEmpty || applyingSelection)
+              .accessibilityIdentifier("skills.library.apply")
+          }
           if !error.isEmpty {Text(error).foregroundStyle(.red)}
-        }.padding(28).frame(width:760,height:560)
+        }.padding(28).frame(width:760,height:560).interactiveDismissDisabled(applyingSelection).disabled(applyingSelection)
       }
+  }
+  private var filteredLibrary:[SkillRow] {
+    let query=libraryQuery.trimmingCharacters(in:.whitespacesAndNewlines)
+    return rows.filter { row in
+      query.isEmpty || [row.package,row.selected?.name ?? "",row.selected?.description ?? "",row.source,
+        row.source.hasPrefix("catalog:") ? "商店下载":"本地导入"].contains { $0.localizedCaseInsensitiveContains(query) }
+    }
+  }
+  private func applySelection(){
+    let items=rows.filter{librarySelection.contains($0.id)}.map{["source":$0.source,"package":$0.package,"version":$0.version]}
+    guard !applyingSelection,!items.isEmpty,items.count == librarySelection.count else{return}
+    applyingSelection=true
+    store.workspaceRequest(["op":"skills.enableSelection","scope":scope,"scopeID":scopeID,"items":items],as:NoData.self){result in
+      applyingSelection=false
+      if result.ok {library=false} else {error=message(result.error)}
+    }
   }
   private func origin(_ source:String)->String {
     switch source {case "global":return "全局";case "project":return "项目";case "chat":return "对话";default:return "未启用"}

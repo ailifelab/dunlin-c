@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include "recovery.h"
+#include "session_outcomes.h"
 #include "trajectory.h"
 #include "file_history.h"
 #include "knowledge_projection.h"
@@ -10,6 +11,7 @@
 #include "dunlin/desktop.h"
 #include "dunlin/history_index.h"
 #include "internal.h"
+#include "model_helpers.h"
 #include "media_records.h"
 #include "platform_grants.h"
 #include "config_registry.h"
@@ -41,6 +43,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include <stdint.h>
 #include <errno.h>
 typedef struct json_object J;
@@ -53,6 +56,7 @@ typedef struct {
     const char *expanded_input;
     const char *snapshot;
     char run[65];
+    const char *retry_run;
     const char *trace_model,*trace_protocol,*trace_secret;
     dl_trace_span *trace;
     dc_tool_record_run *tool_records;
@@ -68,6 +72,9 @@ static J *get(J *o,const char *k){
     return v;
 }
 static size_t message_count(J *o){J *a=get(o,"messages");return json_object_is_type(a,json_type_array)?json_object_array_length(a):0;}
+/* Recorded only for newly committed source messages. A clock failure remains
+ * explicit unknown zero; never backfill earlier source from a cache timestamp. */
+static int64_t source_time_ms(void){struct timespec t;if(timespec_get(&t,TIME_UTC)!=TIME_UTC||t.tv_sec<=0||(uint64_t)t.tv_sec>9007199254740ULL)return 0;return (int64_t)t.tv_sec*1000+t.tv_nsec/1000000;}
 static char *copyjson(J *j){
     return j?strdup(json_object_to_json_string_ext(j,JSON_C_TO_STRING_PLAIN)):NULL;
 }
@@ -144,6 +151,7 @@ dc_store *dc_open(const char *directory){
     if(s->index)dl_index_limit_bytes(s->index,dc_index_quota(s));
     /* Optional derived cache; its corruption must not disable source history. */
     s->trajectory=dl_trajectory_open(directory);
+    s->live_stream=dl_live_stream_open();
     if(!dc_platform_grants_schema(s)||!dc_media_schema(s)||!dc_agents_initialize(s)){dc_close(s);return NULL;}
     dc_file_history_cleanup(s,8);
     #ifdef DUNLIN_WITH_DSH
@@ -160,11 +168,14 @@ dc_store *dc_open_agent_worker(dc_store *owner){
     if(!exec(s,"PRAGMA synchronous=FULL;")||!dc_chat_workspace_writer(s)||!dc_attachments_initialize(s,0)){dc_close(s);return NULL;}
     /* Derived traces are optional, but workers must not run startup recovery. */
     if(owner->trajectory)s->trajectory=dl_trajectory_open_worker(owner->trajectory);
+    s->live_stream=dl_live_stream_retain(owner->live_stream);
+    if(!dc_extensions_share(owner,s)){dc_close(s);return NULL;}
     return s;
 }
 void dc_close(dc_store *s){
     if(s){
         dc_extensions_close(s);
+        dl_live_stream_close(s->live_stream);
         dl_trajectory_close(s->trajectory);
         dl_index_close(s->index);
         dl_attachments_close(s->attachments);
@@ -290,7 +301,8 @@ char *dc_messages_through(dc_store *s,const char *id,int64_t through){
         json_object_object_add(o,"sequence",json_object_new_int64((int64_t)i));
         if(get(old,"_dunlin_media"))json_object_object_add(o,"media",json_object_get(get(old,"_dunlin_media")));
         if(get(old,"_dunlin_observation"))json_object_object_add(o,"observation",json_object_get(get(old,"_dunlin_observation")));
-        json_object_object_add(o,"role",json_object_new_string(role));
+        json_object_object_add(o,"role",json_object_new_string(get(old,"_dunlin_reference")?"reference":role));
+        if(get(old,"_dunlin_reference"))json_object_object_add(o,"reference",json_object_get(get(old,"_dunlin_reference")));
         json_object_object_add(o,"content",empty_reasoning?json_object_new_string(""):json_object_get(c));
         if(get(old,"_dunlin_attachments")){
             J *attachment=dc_attachment_message_view(s,id,(int64_t)i,old);
@@ -335,8 +347,8 @@ finish:
     return r;
 }
 char *dc_messages(dc_store *s,const char *id){return dc_messages_through(s,id,INT64_MAX);}
-int dc_delete_chat(dc_store *s,const char *id){
-    if(!s||!valid(id)||dc_media_chat_busy(s,id))return 0;
+static int delete_chat_unlocked(dc_store *s,const char *id,int preserve){
+    if(!s||!valid(id)||dc_media_chat_busy(s,id)||dc_extensions_chat_busy(s,id))return 0;
     J *checkpoint=state(s,id);
     int unfinished=json_object_get_boolean(get(checkpoint,"active"))||get(checkpoint,"pending")!=NULL;
     if(!checkpoint){
@@ -345,8 +357,16 @@ int dc_delete_chat(dc_store *s,const char *id){
     }
     json_object_put(checkpoint);
     if(unfinished||!exec(s,"BEGIN IMMEDIATE"))return 0;
+    if(preserve){
+        sqlite3_stmt *keep=prepare(s,"UPDATE graph_nodes SET independent=1,revision=revision+1,updated=unixepoch() "
+            "WHERE source_chat=? AND kind='memory' AND independent=0 AND scope!='chat' AND state!='deleted'");
+        if(keep)bind(keep,1,id);
+        int saved=keep&&sqlite3_step(keep)==SQLITE_DONE;
+        sqlite3_finalize(keep);
+        if(!saved){exec(s,"ROLLBACK");return 0;}
+    }
     char *trace_key=dc_trajectory_chat_key(s,id);
-    int derived_ok=dc_media_drop_chat(s,id)&&dc_agents_forget_chat(s,id)&&dc_knowledge_drop_chat(s,id)&&dc_file_history_drop_chat(s,id)
+    int derived_ok=dc_helpers_drop_chat(s,id)&&dc_media_drop_chat(s,id)&&dc_agents_forget_chat(s,id)&&dc_knowledge_drop_chat(s,id)&&dc_file_history_drop_chat(s,id)
         &&(!s->attachments||dl_attachments_delete_owner(s->attachments,DL_ATTACHMENT_CHAT,id)==DL_ATTACHMENT_OK);
     sqlite3_stmt *deletion=prepare(s,"INSERT OR IGNORE INTO index_deletions(chat) VALUES(?)");
     if(deletion)bind(deletion,1,id);
@@ -360,6 +380,8 @@ int dc_delete_chat(dc_store *s,const char *id){
     }
     sqlite3_finalize(q);
     if(s->attachments){q=prepare(s,"DELETE FROM chat_attachment_policy WHERE chat=?");if(q)bind(q,1,id);ok=ok&&q&&sqlite3_step(q)==SQLITE_DONE;sqlite3_finalize(q);}
+    q=prepare(s,"DELETE FROM extension_forks WHERE chat=?");
+    if(q){bind(q,1,id);ok=ok&&sqlite3_step(q)==SQLITE_DONE;}else ok=0;sqlite3_finalize(q);
     q=prepare(s,"DELETE FROM chat_properties WHERE chat=?");
     if(q){bind(q,1,id);ok=ok&&sqlite3_step(q)==SQLITE_DONE;}else ok=0;
     sqlite3_finalize(q);
@@ -373,13 +395,30 @@ int dc_delete_chat(dc_store *s,const char *id){
     }
     else ok=0;
     sqlite3_finalize(q);
-    const char *cleanups[]={"DELETE FROM grant_records WHERE chat=?","DELETE FROM run_records WHERE chat=?","DELETE FROM skill_bindings WHERE scope='chat' AND scope_id=?","DELETE FROM compaction_records WHERE chat=?","DELETE FROM turn_preparation WHERE chat=?","DELETE FROM conversation_events WHERE chat=?","DELETE FROM trace_chat_epochs WHERE chat=?","DELETE FROM tool_record_schemas WHERE record IN(SELECT id FROM tool_records WHERE chat=?)","DELETE FROM tool_records WHERE chat=?","DELETE FROM tool_record_migrations WHERE chat=?"};
+    /* End local access atomically with chat removal. Preserve remote cleanup
+     * records so the account can still be revoked from permission settings. */
+    const char *cleanups[]={"UPDATE capability_leases SET state='expired' WHERE chat=? AND state='active'","DELETE FROM extension_client_sessions WHERE chat=?","DELETE FROM extension_agent_jobs WHERE chat=?","DELETE FROM extension_agent_scopes WHERE chat=?","DELETE FROM extension_agent_inputs WHERE chat=?","DELETE FROM extension_agent_sessions WHERE chat=?","DELETE FROM extension_terminal_owners WHERE chat=?","DELETE FROM grant_records WHERE chat=?","DELETE FROM run_records WHERE chat=?","DELETE FROM skill_bindings WHERE scope='chat' AND scope_id=?","DELETE FROM compact_sources WHERE chat=?","DELETE FROM compaction_records WHERE chat=?","DELETE FROM turn_preparation WHERE chat=?","DELETE FROM conversation_events WHERE chat=?","DELETE FROM trace_chat_epochs WHERE chat=?","DELETE FROM tool_record_schemas WHERE record IN(SELECT id FROM tool_records WHERE chat=?)","DELETE FROM tool_records WHERE chat=?","DELETE FROM tool_record_migrations WHERE chat=?"};
     for(size_t i=0;ok&&i<sizeof cleanups/sizeof *cleanups;i++){
         q=prepare(s,cleanups[i]);if(q){bind(q,1,id);ok=sqlite3_step(q)==SQLITE_DONE;}else ok=0;sqlite3_finalize(q);
     }
     if(!exec(s,ok?"COMMIT":"ROLLBACK")){exec(s,"ROLLBACK");ok=0;}
-    if(ok){dc_index_cleanup_deleted(s,8);if(trace_key)dl_trajectory_forget(s->trajectory,trace_key);dc_file_history_cleanup(s,8);}free(trace_key);
+    if(ok){dc_extensions_forget_chat(s,id);dc_index_cleanup_deleted(s,8);if(trace_key)dl_trajectory_forget(s->trajectory,trace_key);dc_file_history_cleanup(s,8);}free(trace_key);
     return ok;
+}
+int dc_delete_chat_preserving_memories(dc_store *s,const char *id,int preserve){
+    void *scope=dc_extensions_scope_enter(s);
+    if(!scope)return 0;
+    int out=delete_chat_unlocked(s,id,preserve);
+    dc_extensions_scope_leave(scope);
+    return out;
+}
+int dc_delete_chat(dc_store *s,const char *id){return dc_delete_chat_preserving_memories(s,id,0);}
+static int retryable_input(J *state){
+    size_t n=message_count(state);
+    if(!n||get(state,"pending")||get(state,"sealed")||json_object_get_boolean(get(state,"active")))return 0;
+    const char *role=json_object_get_string(get(json_object_array_get_idx(get(state,"messages"),n-1),"role"));
+    int status=json_object_get_int(get(state,"status"));
+    return role&&!strcmp(role,"user")&&(status==AH_FAILED||status==AH_BUDGET||status==AH_TIMEOUT||status==AH_CANCELLED);
 }
 static ah_status session_open(void *ctx,const char *id,void **out,J **value){
     lease *l=ctx;
@@ -395,6 +434,10 @@ static ah_status session_open(void *ctx,const char *id,void **out,J **value){
         sqlite3_finalize(q);
         if(bad)return AH_FAILED;
     }
+    if(l->retry_run){
+        const char *last=json_object_get_string(get(j,"_dunlin_run"));
+        if(!last||strcmp(last,l->retry_run)||!retryable_input(j))return AH_BUSY;
+    }
     if(j){
         const char *p=json_object_get_string(get(j,"_dunlin_profile"));
         if(json_object_get_boolean(get(j,"active"))&&(!p||strcmp(p,l->profile)))return AH_BUSY;
@@ -402,6 +445,9 @@ static ah_status session_open(void *ctx,const char *id,void **out,J **value){
         if(json_object_get_boolean(get(j,"active"))&&valid(run))snprintf(l->run,sizeof l->run,"%s",run);
         *value=clone(j);
         if(!*value)return AH_FAILED;
+        /* Reuse the committed question in the private request copy. A new run
+         * records its own outcome. A stale selection never reopens history. */
+        if(l->retry_run)json_object_object_add(*value,"active",json_object_new_boolean(1));
         J *m=get(*value,"messages");
         for(size_t i=0;m&&i<json_object_array_length(m);i++){
             J *v=json_object_array_get_idx(m,i);
@@ -411,6 +457,9 @@ static ah_status session_open(void *ctx,const char *id,void **out,J **value){
                 json_object_object_del(v,"reasoning_content");
             }
             json_object_object_del(v,"_dunlin_display");
+            json_object_object_del(v,"_dunlin_reference");
+            json_object_object_del(v,"_dunlin_message_id");
+            json_object_object_del(v,"_dunlin_time");
             json_object_object_del(v,"_dunlin_profile");
             json_object_object_del(v,"_dunlin_observation");
             json_object_object_del(v,"_dunlin_media");
@@ -421,7 +470,8 @@ static ah_status session_open(void *ctx,const char *id,void **out,J **value){
     }
     else *value=NULL;
     l->trace=dc_trajectory_begin(l->store,l->id,l->run,l->trace_model?l->trace_model:"",l->trace_protocol?l->trace_protocol:"",(long long)message_count(j),l->trace_secret);
-    dl_trajectory_event(l->trace,"turn.start",j&&json_object_get_boolean(get(j,"active"))?"resume":"input",j&&json_object_get_boolean(get(j,"active"))?6:5);
+    const char *start_kind=l->retry_run?"retry":json_object_get_boolean(get(j,"active"))?"resume":"input";
+    dl_trajectory_event(l->trace,"turn.start",start_kind,strlen(start_kind));
     *out=l;
     return AH_DONE;
 }
@@ -450,7 +500,13 @@ static int session_save(void *ctx,J *value){
             json_object_object_del(x,"_dunlin_profile");
             json_object_object_del(y,"_dunlin_profile");
             json_object_object_del(x,"_dunlin_display");
+            json_object_object_del(x,"_dunlin_reference");
+            json_object_object_del(x,"_dunlin_message_id");
             json_object_object_del(y,"_dunlin_display");
+            json_object_object_del(y,"_dunlin_reference");
+            json_object_object_del(y,"_dunlin_message_id");
+            json_object_object_del(x,"_dunlin_time");
+            json_object_object_del(y,"_dunlin_time");
             json_object_object_del(x,"_dunlin_media");
             json_object_object_del(y,"_dunlin_media");
             json_object_object_del(x,"_dunlin_observation");
@@ -467,8 +523,10 @@ static int session_save(void *ctx,J *value){
             json_object_array_put_idx(messages,i,json_object_get(a));
         }
         else {
+            json_object_object_del(m,"_dunlin_reference");
             json_object_object_del(m,"_dunlin_attachments");
             json_object_object_add(m,"_dunlin_profile",json_object_new_string(l->profile));
+            json_object_object_add(m,"_dunlin_time",json_object_new_int64(source_time_ms()));
             const char *role=json_object_get_string(get(m,"role")),*content=json_object_get_string(get(m,"content"));
             if(l->display_input&&l->expanded_input&&role&&!strcmp(role,"user")&&content&&!strcmp(content,l->expanded_input))
                 json_object_object_add(m,"_dunlin_display",json_object_new_string(l->display_input));
@@ -479,8 +537,10 @@ static int session_save(void *ctx,J *value){
             }
         }
     }
+    if(input_sequence>=0&&!dc_agents_source_message(s,json_object_array_get_idx(messages,(size_t)input_sequence))){json_object_put(saved);return -1;}
     json_object_object_add(saved,"_dunlin_profile",json_object_new_string(l->profile));
     json_object_object_add(saved,"_dunlin_run",json_object_new_string(l->run));
+    if(!dc_outcomes_save(saved,l->original,l->run)){json_object_put(saved);return -1;}
     char *text=copyjson(saved);
     int ok=text&&exec(s,"BEGIN IMMEDIATE");
     sqlite3_stmt *q=ok?prepare(s,"UPDATE chats SET state=?,updated=unixepoch() WHERE id=?"):NULL;
@@ -495,6 +555,7 @@ static int session_save(void *ctx,J *value){
         char hash[65];ok=dc_attachment_message_hash(json_object_array_get_idx(messages,(size_t)input_sequence),hash)
             &&dl_attachments_bind(s->attachments,DL_ATTACHMENT_CHAT,l->id,l->attachment.id,input_sequence,hash)==DL_ATTACHMENT_OK;
     }
+    if(ok)ok=dc_agents_commit_output(s,messages,before);
     if(ok&&input_sequence>=0){
         ok=dc_agents_commit_input(s,l->id,input_sequence,json_object_array_get_idx(messages,(size_t)input_sequence));
     }
@@ -602,6 +663,12 @@ static int cancelled(void *ctx){
 }
 static void event(void *ctx,const char *name,const char *text,size_t n){
     dc_observer *o=ctx;const dc_hooks *h=o->hooks;
+    if(o->session){
+        const char *run=o->session->run;
+        if(!strcmp(name,"model.request"))dl_live_stream_begin(o->store->live_stream,o->chat,run,(long long)message_count(o->session->original));
+        else if(!strcmp(name,"delta"))dl_live_stream_append(o->store->live_stream,o->chat,run,text,n);
+        else if(!strcmp(name,"model.request.end"))dl_live_stream_end(o->store->live_stream,o->chat,run);
+    }
     if(o->last_grant&&(!strcmp(name,"tool.post_execute")||!strcmp(name,"tool.outcome_unknown"))){
         if(!dc_grant_end(o->store,o->last_grant))o->grant_error=2;
         o->last_grant=0;
@@ -639,11 +706,11 @@ static int append_skills(J *cfg,J *skills){
     }
     json_object_object_add(cfg,"system_prompt",json_object_new_string_len(prompt,(int)used));free(prompt);return 1;
 }
-static char *run_impl(dc_store *s,const char *id,const char *settings,const char *input,const dc_hooks *hooks,const char *secret,int host_secret,J *frozen,int freeze_metadata,const char *attachment_id,int *input_committed){
+static char *run_impl(dc_store *s,const char *id,const char *settings,const char *input,const dc_hooks *hooks,const char *secret,int host_secret,J *frozen,int freeze_metadata,const char *attachment_id,int *input_committed,const char *retry_run){
     if(!s||!valid(id)||!settings||strlen(settings)>262144)return NULL;
     if(dc_media_chat_busy(s,id))return strdup("{\"status\":\"failed\",\"text\":\"请先结束当前通话\"}");
     dc_observer host={.hooks=hooks,.store=s,.chat=id};
-    dc_hooks traced_hooks={.user=&host,.event=string_event};
+    dc_hooks traced_hooks={.user=&host,.event=string_event,.cancelled=cancelled};
     J *cfg=dunlin_json_parse(settings,strlen(settings));
     if(!json_object_is_type(cfg,json_type_object)){
         json_object_put(cfg);
@@ -812,6 +879,17 @@ static char *run_impl(dc_store *s,const char *id,const char *settings,const char
         if(!extension_snapshot||changed){json_object_put(extension_snapshot);free(expanded);free(workspace);dc_project_tools_close(&file_tools);json_object_put(project);json_object_put(cfg);return strdup("{\"status\":\"busy\",\"text\":\"插件工具版本或配置已变化，未执行待处理工具。请先结束原回合。\"}");}
         json_object_object_add(cfg,"_extension_catalog",extension_snapshot);
     }
+    /* Runtime context is produced by the optional DSH composition, frozen
+     * before any model request. Resumption must retain the same provenance. */
+    if(!prior_active||get(frozen,"_extension_context")){
+        J *snapshot=dc_extension_context_snapshot(s,id),*prior=get(frozen,"_extension_context");
+        int changed=prior&&snapshot&&strcmp(json_object_to_json_string_ext(prior,JSON_C_TO_STRING_PLAIN),json_object_to_json_string_ext(snapshot,JSON_C_TO_STRING_PLAIN));
+        if(!snapshot||changed){json_object_put(snapshot);free(expanded);free(workspace);dc_project_tools_close(&file_tools);json_object_put(project);json_object_put(cfg);return strdup("{\"status\":\"busy\",\"text\":\"插件上下文或来源已变化，未发送模型请求。请先结束原回合。\"}");}
+        const char *text=json_object_get_string(get(snapshot,"text"));
+        if(text&&*text&&json_object_get_int64(get(cfg,"max_message_bytes"))<262144)json_object_object_add(cfg,"max_message_bytes",json_object_new_int(262144));
+        if(text&&*text&&input){const char *original=expanded?expanded:core_input;size_t n=strlen(original)+strlen(text)+128;char *merged=malloc(n);if(!merged){json_object_put(snapshot);free(expanded);free(workspace);dc_project_tools_close(&file_tools);json_object_put(project);json_object_put(cfg);return NULL;}snprintf(merged,n,"%s\n\n<dunlin-extension-context>\n%s\n</dunlin-extension-context>",original,text);free(expanded);expanded=merged;}
+        if(prior||json_object_array_length(get(snapshot,"owners")))json_object_object_add(cfg,"_extension_context",snapshot);else json_object_put(snapshot);
+    }
     char *profile_config=NULL;
     if(use_adapter){
         J *identity=json_object_new_object();
@@ -854,6 +932,7 @@ static char *run_impl(dc_store *s,const char *id,const char *settings,const char
     json_object_object_del(cfg,"_knowledge_snapshot");
     json_object_object_del(cfg,"_frozen_skills");
     json_object_object_del(cfg,"_extension_catalog");
+    json_object_object_del(cfg,"_extension_context");
     json_object_object_del(cfg,"_public_settings");
     json_object_object_del(cfg,"_public_settings_raw");
     json_object_object_del(cfg,"_tool_policy");
@@ -898,8 +977,8 @@ static char *run_impl(dc_store *s,const char *id,const char *settings,const char
         return NULL;
     }
     lease l={
-        .store=s,.id=id,.display_input=expanded?input:NULL,.expanded_input=expanded,.snapshot=run_snapshot,.hooks=hooks,
-        .attachment=pending,.input=input,.media=media}
+        .store=s,.id=id,.display_input=dc_agents_original_input(s)?dc_agents_original_input(s):expanded?input:NULL,.expanded_input=expanded?expanded:dc_agents_original_input(s)?(char*)input:NULL,.snapshot=run_snapshot,.hooks=hooks,
+        .attachment=pending,.input=input,.media=media,.retry_run=retry_run}
     ;
     dc_sha256(profile_config?profile_config:settings,strlen(profile_config?profile_config:settings),l.profile);
     unsigned char nonce[16];sqlite3_randomness(sizeof nonce,nonce);dc_sha256(nonce,sizeof nonce,l.run);
@@ -940,7 +1019,7 @@ static char *run_impl(dc_store *s,const char *id,const char *settings,const char
         dc_knowledge_projection knowledge_projection={0};
         const dunlin_context_projector_v1 *projection=dc_knowledge_projector(&knowledge_projection,get(audit,"_knowledge_snapshot"),dc_compactor_service(compactor),dunlin_limits(r),&traced_hooks);
         dc_attachment_projection attachments={0};
-        if(media)projection=dc_attachment_projector(&attachments,s,id,&l.original,images,projection,dunlin_limits(r),&traced_hooks);
+        if(media)projection=dc_attachment_projector(&attachments,s,id,&l.original,images,json_object_get_boolean(get(get(audit,"_context_policy"),"omitHistoryImages")),projection,dunlin_limits(r),&traced_hooks);
         if(projection)dunlin_set_context_projector(r,projection);
         ah_session_service store={
             &l,session_open,session_save,session_close}
@@ -957,6 +1036,7 @@ static char *run_impl(dc_store *s,const char *id,const char *settings,const char
     else if(host.grant_error==1&&result.status!=AH_UNKNOWN)result.status=AH_DENIED;
     if(!l.trace){l.trace=dc_trajectory_begin(s,id,l.run,l.trace_model?l.trace_model:"",l.trace_protocol?l.trace_protocol:"",-1,secret);const char *detail=*error?error:"no admitted run or trace unavailable";dl_trajectory_event(l.trace,"admission.result",detail,strlen(detail));}
     dl_trajectory_finish(l.trace,ah_status_name(result.status),(long long)message_count(l.original));l.trace=NULL;json_object_put(trace_config);
+    dl_live_stream_end(s->live_stream,id,l.run);
     dc_grants_finish(s,id);
     dc_tool_records_finish(&tool_records,result.status);
     q=prepare(s,"UPDATE run_records SET status=?,finished=unixepoch() WHERE id=?");
@@ -964,6 +1044,9 @@ static char *run_impl(dc_store *s,const char *id,const char *settings,const char
     J *out=json_object_new_object();
     json_object_object_add(out,"status",json_object_new_string(ah_status_name(result.status)));
     json_object_object_add(out,"text",json_object_new_string(host.grant_error==2?"工具操作已结束，但授权收尾记录未保存；请核对工具结果，不要重复执行。":host.grant_error?"无法保存授权记录，本次工具调用已拒绝。":result.text?result.text:(*error?error:"operation failed")));
+    const char *saved_run=json_object_get_string(get(l.original,"_dunlin_run"));
+    if(saved_run&&!strcmp(saved_run,l.run)&&retryable_input(l.original))
+        json_object_object_add(out,"retryRun",json_object_new_string(saved_run));
     char *answer=copyjson(out);
     json_object_put(out);
     free(result.text);
@@ -996,7 +1079,7 @@ static char *run(dc_store *s,const char *id,const char *settings,const char *inp
  }
  const char *raw_saved=json_object_get_string(get(frozen,"_public_settings_raw"));
  const char *effective=saved?(raw_saved?raw_saved:json_object_to_json_string_ext(saved,JSON_C_TO_STRING_PLAIN)):settings;
- char *result=run_impl(s,id,effective,input,hooks,secret,host_secret,saved?frozen:NULL,!active||saved!=NULL,attachment,input_committed);
+ char *result=run_impl(s,id,effective,input,hooks,secret,host_secret,saved?frozen:NULL,!active||saved!=NULL,attachment,input_committed,NULL);
  json_object_put(checkpoint);json_object_put(frozen);json_object_put(provided);return result;
 }
 char *dc_run(dc_store *s,const char *id,const char *settings,const char *input,const dc_hooks *hooks){return run(s,id,settings,input,hooks,NULL,0,NULL,NULL);}
@@ -1020,6 +1103,18 @@ char *dc_run_message_with_secret(dc_store *s,const char *id,const char *settings
  if(!dc_agents_chat_prepare(s,id,input,&expanded,&delivery_context))return strdup("{\"status\":\"failed\",\"text\":\"协作收件箱读取失败，未发送模型请求\"}");
  char *result=run_with_secret(s,id,settings,expanded?expanded:input,hooks,secret,attachment,input_committed);
  dc_agents_chat_finish(s,delivery_context);free(expanded);return result;
+}
+char *dc_retry_chat_turn(dc_store *s,const char *id,const char *settings,const char *prior_run,const dc_hooks *hooks,const char *secret){
+    if(!s||!valid(id)||!prior_run||strlen(prior_run)!=64||strspn(prior_run,"0123456789abcdef")!=64||
+       !settings||strlen(settings)>262144)return NULL;
+    J *checkpoint=state(s,id);
+    const char *last=json_object_get_string(get(checkpoint,"_dunlin_run"));
+    int eligible=last&&!strcmp(last,prior_run)&&retryable_input(checkpoint);
+    json_object_put(checkpoint);
+    if(!eligible)return strdup("{\"status\":\"busy\",\"text\":\"原回合已变化，请重新查看聊天。\"}");
+    J *public=dunlin_json_parse(settings,strlen(settings));if(!json_object_is_type(public,json_type_object)){json_object_put(public);return NULL;}
+    json_object_object_del(public,"key_env");char *raw=copyjson(public);json_object_put(public);if(!raw)return NULL;
+    char *out=run_impl(s,id,raw,NULL,hooks,secret,1,NULL,1,NULL,NULL,prior_run);free(raw);return out;
 }
 int dc_index_pending(dc_store *s,unsigned limit){
     if(!s)return -1;
@@ -1071,40 +1166,60 @@ int dc_index_pending(dc_store *s,unsigned limit){
     return 1;
 }
 char *dc_search(dc_store *s,const char *query){
-    if(!s)return NULL;
-    char *raw=dl_index_search(s->index,"local",query);
-    J *a=raw?json_tokener_parse(raw):NULL;
-    free(raw);
-    if(!a)return NULL;
-    for(size_t i=json_object_array_length(a);i>0;i--){
-        J *v=json_object_array_get_idx(a,i-1);
-        /* A rebuildable cache is never authoritative source. This additionally
-         * rejects stale/corrupt text and public-ID reuse after failed cleanup. */
-        sqlite3_stmt *q=prepare(s,"SELECT state FROM chats WHERE id=? AND NOT EXISTS(SELECT 1 FROM index_deletions WHERE chat=chats.id)");
-        if(!q){
-            json_object_put(a);
-            return NULL;
-        }
-        bind(q,1,json_object_get_string(get(v,"chat")));
-        int row_status=sqlite3_step(q);
-        int current=0;
-        if(row_status==SQLITE_ROW){
-            const char *raw=(const char*)sqlite3_column_text(q,0);int bytes=sqlite3_column_bytes(q,0);
-            J *checkpoint=raw&&bytes>0&&strlen(raw)==(size_t)bytes?dunlin_json_parse(raw,(size_t)bytes):NULL;
-            J *messages=get(checkpoint,"messages"),*seq=get(v,"sequence"),*indexed=get(v,"text");
-            int64_t sequence=json_object_get_int64(seq);
-            if(json_object_is_type(messages,json_type_array)&&json_object_is_type(seq,json_type_int)&&sequence>=0&&(uint64_t)sequence<json_object_array_length(messages)){
-                J *message=json_object_array_get_idx(messages,(size_t)sequence),*source=get(message,"_dunlin_display");
-                if(!source)source=get(message,"content");
-                current=json_object_is_type(source,json_type_string)&&json_object_is_type(indexed,json_type_string)&&json_object_equal(source,indexed);
+    return dc_search_filtered(s,query,NULL,0);
+}
+char *dc_search_filtered(dc_store *s,const char *query,const char *project,int64_t since_ms){
+    if(!s||since_ms<0)return NULL;
+    J *matches=json_object_new_array();
+    if(!matches)return NULL;
+    for(int offset=0;offset<=INT32_MAX-50;offset+=50){
+        char *raw=dl_index_search_page(s->index,"local",query,offset);
+        J *a=raw?json_tokener_parse(raw):NULL;
+        free(raw);
+        if(!a){json_object_put(matches);return NULL;}
+        size_t fetched=json_object_array_length(a);
+        for(size_t i=json_object_array_length(a);i>0;i--){
+            J *v=json_object_array_get_idx(a,i-1);
+            /* A rebuildable cache is never authoritative source. This additionally
+             * rejects stale/corrupt text and public-ID reuse after failed cleanup. */
+            sqlite3_stmt *q=prepare(s,"SELECT state FROM chats WHERE id=? AND (? IS NULL OR EXISTS(SELECT 1 FROM chat_properties p WHERE p.chat=chats.id AND p.project=?)) AND NOT EXISTS(SELECT 1 FROM index_deletions WHERE chat=chats.id)");
+            if(!q){
+                json_object_put(a);json_object_put(matches);
+                return NULL;
             }
-            json_object_put(checkpoint);
+            bind(q,1,json_object_get_string(get(v,"chat")));
+            if(project){bind(q,2,project);bind(q,3,project);}
+            int row_status=sqlite3_step(q);
+            int current=0;
+            if(row_status==SQLITE_ROW){
+                const char *raw=(const char*)sqlite3_column_text(q,0);int bytes=sqlite3_column_bytes(q,0);
+                J *checkpoint=raw&&bytes>0&&strlen(raw)==(size_t)bytes?dunlin_json_parse(raw,(size_t)bytes):NULL;
+                J *messages=get(checkpoint,"messages"),*seq=get(v,"sequence"),*indexed=get(v,"text");
+                int64_t sequence=json_object_get_int64(seq);
+                if(json_object_is_type(messages,json_type_array)&&json_object_is_type(seq,json_type_int)&&sequence>=0&&(uint64_t)sequence<json_object_array_length(messages)){
+                    J *message=json_object_array_get_idx(messages,(size_t)sequence),*source=get(message,"_dunlin_display");
+                    if(!source)source=get(message,"content");
+                    J *time=get(message,"_dunlin_time");
+                    J *role=get(message,"role");
+                    current=json_object_is_type(role,json_type_string)&&(!since_ms||(json_object_is_type(time,json_type_int)&&json_object_get_int64(time)>=since_ms))&&json_object_is_type(source,json_type_string)&&json_object_is_type(indexed,json_type_string)&&json_object_equal(source,indexed);
+                    if(current){
+                        json_object_object_add(v,"role",json_object_get(role));
+                        if(json_object_is_type(time,json_type_int)&&json_object_get_int64(time)>0)
+                            json_object_object_add(v,"time",json_object_get(time));
+                    }
+                }
+                json_object_put(checkpoint);
+            }
+            sqlite3_finalize(q);
+            if(row_status!=SQLITE_ROW&&row_status!=SQLITE_DONE){json_object_put(a);json_object_put(matches);return NULL;}
+            if(!current)json_object_array_del_idx(a,i-1,1);
         }
-        sqlite3_finalize(q);
-        if(row_status!=SQLITE_ROW&&row_status!=SQLITE_DONE){json_object_put(a);return NULL;}
-        if(!current)json_object_array_del_idx(a,i-1,1);
+        for(size_t i=0;i<json_object_array_length(a)&&json_object_array_length(matches)<50;i++)
+            json_object_array_add(matches,json_object_get(json_object_array_get_idx(a,i)));
+        json_object_put(a);
+        if(fetched<50||json_object_array_length(matches)==50)break;
     }
-    char *r=copyjson(a);
-    json_object_put(a);
+    char *r=copyjson(matches);
+    json_object_put(matches);
     return r;
 }

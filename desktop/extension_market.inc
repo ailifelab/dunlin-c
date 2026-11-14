@@ -1,0 +1,22 @@
+/* Translate original market lifecycle HTTP actions to the authoritative C
+ * store. A successful HTTP exchange can carry an explicit operation refusal;
+ * that is not an unhandled plugin crash. No Node CLI installer is invoked. */
+static J *market_http_reply(int status,J *body){
+ J *response=json_object_new_object(),*headers=json_object_new_object();json_object_object_add(headers,"content-type",json_object_new_string("application/json"));json_object_object_add(response,"status",json_object_new_int(status));json_object_object_add(response,"headers",headers);json_object_object_add(response,"body",body);J *out=reply(1,NULL,response);json_object_object_add(out,"effectState",json_object_new_string("completed"));return out;
+}
+static J *market_http_error(int status,const char *code){J *body=json_object_new_object();json_object_object_add(body,"error",json_object_new_string(code));return market_http_reply(status,body);}
+#include "extension_market_install.inc"
+static J *market_http_action(dc_store *s,const char *caller,J *args,const char *call,const dc_hooks *hooks){
+ if(!eq(caller,"dshmarket"))return NULL;const char *url=str(args,"url"),*method=str(args,"method");if(!url||!eq(method,"POST"))return NULL;
+ if(eq(url,"/dsh-market/install")||eq(url,"/dsh-market/update")||eq(url,"/dsh-market/toggle")||eq(url,"/dsh-market/uninstall")){sqlite3_stmt *busy=prep(s,"SELECT EXISTS(SELECT 1 FROM run_records WHERE status='running')");int active=!busy||sqlite3_step(busy)!=SQLITE_ROW||sqlite3_column_int(busy,0);sqlite3_finalize(busy);if(active)return market_http_error(409,"原生模型回合正在执行，请先停止或等待完成，再修改插件环境。");}
+ if(eq(url,"/dsh-market/install")||eq(url,"/dsh-market/update"))return market_install_action(s,url,get(args,"body"),call,hooks);if(!eq(url,"/dsh-market/toggle")&&!eq(url,"/dsh-market/uninstall"))return NULL;
+ J *body=get(args,"body");const char *name=str(body,"name");if(!id(name))return market_http_error(400,"invalid_package");if(eq(name,"dshmarket")||eq(name,"dsh-market"))return market_http_error(409,"use_native_plugin_settings_for_market_self_removal");
+ sqlite3_stmt *q=prep(s,"SELECT b.source,b.version,EXISTS(SELECT 1 FROM extension_configuration c WHERE c.source=b.source AND c.package=b.package AND c.version=b.version) FROM extension_bindings b WHERE b.package=?");if(q)bind(q,1,name);char source[257]="",version[257]="";int trusted=0,found=0;if(q&&sqlite3_step(q)==SQLITE_ROW){snprintf(source,sizeof source,"%s",sqlite3_column_text(q,0));snprintf(version,sizeof version,"%s",sqlite3_column_text(q,1));trusted=sqlite3_column_int(q,2);found=sqlite3_step(q)==SQLITE_DONE;}sqlite3_finalize(q);if(!found)return market_http_error(409,"choose_one_installed_source_in_native_settings");
+ J *r=json_object_new_object();json_object_object_add(r,"source",json_object_new_string(source));json_object_object_add(r,"package",json_object_new_string(name));json_object_object_add(r,"version",json_object_new_string(version));J *result=NULL;
+ if(eq(url,"/dsh-market/toggle")){
+  J *enabled=get(body,"enabled");if(!json_object_is_type(enabled,json_type_boolean)){json_object_put(r);return market_http_error(400,"invalid_enabled_state");}
+  if(json_object_get_boolean(enabled)&&!trusted){char digest[65]="";q=prep(s,"SELECT digest FROM extension_versions WHERE source=? AND package=? AND version=? AND quarantined=0");if(q){bind(q,1,source);bind(q,2,name);bind(q,3,version);}if(q&&sqlite3_step(q)==SQLITE_ROW)snprintf(digest,sizeof digest,"%s",sqlite3_column_text(q,0));sqlite3_finalize(q);if(!*digest||!market_install_consent(s,call,name,version,version,digest,hooks)){json_object_put(r);return market_http_error(409,"host_permission_confirmation_denied");}trusted=1;}
+  json_object_object_add(r,"enabled",json_object_get(enabled));json_object_object_add(r,"acceptHostPermissions",json_object_new_boolean(trusted));result=activate(s,r,hooks);
+ }else result=uninstall(s,r,hooks);
+ json_object_put(r);int ok=json_object_get_boolean(get(result,"ok"));if(!ok){J *response=market_http_error(409,str(result,"error")?str(result,"error"):"native_management_failed");json_object_put(result);return response;}json_object_put(result);J *response=json_object_new_object();json_object_object_add(response,"ok",json_object_new_boolean(1));json_object_object_add(response,"reload",json_object_new_boolean(0));json_object_object_add(response,"restartRequired",json_object_new_boolean(0));return market_http_reply(200,response);
+}

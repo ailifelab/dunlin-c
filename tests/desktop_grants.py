@@ -35,6 +35,7 @@ with tempfile.TemporaryDirectory(prefix='dunlin-grants-') as td:
   r=val(lib.dc_workspace_request(db,json.dumps(dict(op=op,**kw)).encode()));assert r['ok'],r;return r.get('data')
  assert lib.dc_add_chat(db,b'allowed',b'allowed',str(work).encode());assert run('allowed','approved-fixture')['status']=='completed';assert (work/'audit.txt').read_text()=='approved-fixture'
  g=request('grants.list',chat='allowed')[0];assert g['allowed'] and g['status']=='expired' and g['waitMs']>=40 and g['ended']>=g['decided']>=g['started'];assert g['argsHash']==hashlib.sha256(reviewed[-1].encode()).hexdigest()
+ assert request('grants.list',recordID=g['id'],chat='allowed')[0]['id']==g['id'] and request('grants.list',recordID=g['id'],chat='another')==[]
  assert request('grants.revoke',id=g['id'])['state']=='already_inactive';assert (work/'audit.txt').read_text()=='approved-fixture'
  allow=False;assert lib.dc_add_chat(db,b'denied',b'denied',str(work).encode());assert run('denied','denied-fixture')['status']=='denied';assert (work/'audit.txt').read_text()=='approved-fixture';d=request('grants.list',chat='denied')[0];assert not d['allowed'] and d['status']=='denied'
  print('PASS persistent exact-argument approval/denial, actual effect, duration, inactive revocation does not revert file')
@@ -46,7 +47,12 @@ with tempfile.TemporaryDirectory(prefix='dunlin-grants-') as td:
  assert lib.dc_add_chat(db,b'finalize-fault',b'finalize fault',str(work).encode())
  final=run('finalize-fault','effect-before-audit-failure');assert final['status']=='unknown',final
  assert (work/'audit.txt').read_text()=='effect-before-audit-failure' and '拒绝' not in final['text']
- sql.execute('DROP TRIGGER deny_grant_end');sql.execute("INSERT INTO grant_records(chat,tool,args,args_hash,status) VALUES('interrupted','shell','fixture','hash','awaiting')");sql.commit();sql.close();lib.dc_close(db)
+ sql.execute('DROP TRIGGER deny_grant_end');sql.execute("INSERT INTO grant_records(chat,tool,args,args_hash,status) VALUES('interrupted','shell','fixture','hash','awaiting')");sql.commit()
+ active=request('grants.list',scope='active',limit=1);assert [r['chat'] for r in active]==['interrupted']
+ historical=request('grants.list',scope='history',limit=1);assert len(historical)==1 and historical[0]['id']<active[0]['id']
+ assert request('grants.list',scope='active',chat='allowed')==[]
+ assert request('grants.list',scope='history',before=historical[0]['id'],limit=1)[0]['id']<historical[0]['id']
+ sql.close();lib.dc_close(db)
  db=lib.dc_open(str(state).encode());assert db;assert request('grants.list',chat='allowed')[0]['argsHash']==g['argsHash'];assert request('grants.list',chat='interrupted')[0]['status']=='interrupted'
  assert lib.dc_delete_chat(db,b'allowed');assert request('grants.list',chat='allowed')==[]
  sql=sqlite3.connect(state/'conversations.sqlite');assert sql.execute("SELECT count(*) FROM run_records WHERE chat='allowed'").fetchone()[0]==0;sql.close();lib.dc_close(db)

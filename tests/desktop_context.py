@@ -10,6 +10,9 @@ class Model(http.server.BaseHTTPRequestHandler):
  def log_message(self,*a):pass
  def do_POST(self):
   req=json.loads(self.rfile.read(int(self.headers['Content-Length'])));requests.append(req);last=req['messages'][-1]['content']
+  if last=='read fixture' and req['messages'][-1]['role']=='user':
+   choice={'role':'assistant','content':None,'tool_calls':[{'id':'read-only','type':'function','function':{'name':'read_file','arguments':json.dumps({'path':'clip.txt'})}}]}
+   body=json.dumps({'choices':[{'index':0,'message':choice,'finish_reason':'tool_calls'}]}).encode();self.send_response(200);self.send_header('Content-Length',str(len(body)));self.end_headers();self.wfile.write(body);return
   if last.startswith('DUNLIN_CONTEXT_CHECKPOINT_V1:'):summaries.append(req);answer='Confirmed constraints: NEVER auto-upgrade Node. Preserve sentinel.c. Earlier verified tool outcomes only; pending work remains pending.'
   else:answer='fixture response from '+req['model']
   body=json.dumps({'choices':[{'index':0,'message':{'role':'assistant','content':answer},'finish_reason':'stop'}]}).encode();self.send_response(200);self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(body)));self.end_headers();self.wfile.write(body)
@@ -26,6 +29,18 @@ with tempfile.TemporaryDirectory(prefix='dunlin-context-') as td:
   context=dict(policy,strategy=strategy,automatic=automatic)
   cfg=json.dumps({'base_url':f'http://127.0.0.1:{server.server_port}/v1','model':model,'protocol':'chat','stream':False,'max_tokens':128,'desktop_tools':'noTools','desktop_context':context}).encode()
   return val(lib.dc_run(db,b'chat',cfg,text.encode(),None))
+ assert lib.dc_add_chat(db,b'clip',b'clip',str(work).encode())
+ content='head '+('字'*2200)+' end';(work/'clip.txt').write_text(content)
+ clip_policy=dict(policy,modelLimit=65536,selectedLimit=65536,shortenToolOutput=True)
+ clip_cfg=dict(base_url=f'http://127.0.0.1:{server.server_port}/v1',model='clip',protocol='chat',stream=False,max_tokens=128,desktop_context=clip_policy)
+ def clip(prompt):
+  out=val(lib.dc_run(db,b'clip',json.dumps(clip_cfg).encode(),prompt.encode(),None));assert out['status']=='completed',out
+  return next(m['content'] for m in requests[-1]['messages'] if m['role']=='tool')
+ assert content in clip('read fixture')
+ clipped=clip('inspect past result');assert content not in clipped and 'Tool output shortened' in clipped and 'head ' in clipped and ' end' in clipped
+ clip_policy['shortenToolOutput']=False
+ assert content in clip('restore full result')
+ print('PASS completed tool output shortened only in request, UTF-8 ends intact, current tool chain exact and original restored')
  originals=[]
  for i in range(10):
   text=f'User turn {i}: NEVER auto-upgrade Node; keep sentinel.c. '+('bounded-fixture-text '*30);originals.append(text);r=run(text);assert r['status']=='completed',r
@@ -48,6 +63,11 @@ with tempfile.TemporaryDirectory(prefix='dunlin-context-') as td:
  bad=dict(policy,modelLimit=-1);cfg=json.dumps({'base_url':f'http://127.0.0.1:{server.server_port}/v1','model':'A','protocol':'chat','desktop_tools':'noTools','desktop_context':bad}).encode();assert val(lib.dc_run(db,b'chat',cfg,b'negative capability',None))['status']=='failed'
  sql.close();lib.dc_close(db);db=lib.dc_open(str(private).encode());assert db
  rec=val(lib.dc_workspace_request(db,b'{"op":"context.records","chat":"chat"}'));assert rec['ok'] and rec['data']
+ row=next(r for r in rec['data'] if r['status']=='committed')
+ def record(chat):
+  return val(lib.dc_workspace_request(db,json.dumps({'op':'context.record','chat':chat,'id':row['id']}).encode()))
+ assert record('chat')['data'] and not record('another-chat')['ok']
+
  segments=val(lib.dc_workspace_request(db,b'{"op":"trace.segments","chat":"chat"}'))['data']['items'];observed=[]
  for segment in segments:
   query=json.dumps({'op':'trace.export','chat':'chat','segment':segment['id']}).encode();observed.extend(val(lib.dc_workspace_request(db,query))['data']['items'])

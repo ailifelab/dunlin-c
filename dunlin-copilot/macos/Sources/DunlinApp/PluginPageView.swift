@@ -16,6 +16,8 @@ extension WorkspaceStore {
         self.pluginPages=contributions.compactMap {item in
           guard ["sidebar","settings"].contains(item.kind),let owner=installed.first(where:{$0.active && $0.runtimeID==item.plugin}) else {return nil}
           return PluginPage(source:owner.source,package:owner.package,version:owner.version,contribution:item)
+        } + installed.filter{$0.active && ($0.selected?.manifest.client?.slots.contains("dunlin.workbench") ?? false)}.map {owner in
+          PluginPage(source:owner.source,package:owner.package,version:owner.version,contribution:NativeContribution(id:"react:"+owner.runtimeID,plugin:owner.runtimeID,kind:"sidebar",title:pluginWorkbenchTitle(owner.package),command:nil,name:nil,scheme:nil,tokens:nil,body:nil,actions:nil,sections:nil))
         }
       }
     }
@@ -27,7 +29,9 @@ struct PluginPageView: View {
   @State private var command:ExtensionCommandSelection?
   var body: some View {
     Group {
-      if let page=store.pluginPages.first(where:{$0.id==pageID}) {
+      if let client=store.pluginClients.first(where:{"react:"+$0.runtimeID==pageID}) {
+        PluginWorkbenchView(client:client)
+      } else if let page=store.pluginPages.first(where:{$0.id==pageID}) {
         ScrollView {VStack(alignment:.leading,spacing:24) {
           Text(page.contribution.title ?? page.package).font(.title2.bold())
           Text("\(page.package) · \(page.version)").font(.callout).foregroundStyle(.secondary)

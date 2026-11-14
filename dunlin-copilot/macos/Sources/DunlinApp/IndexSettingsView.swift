@@ -2,59 +2,132 @@ import AppKit
 import SwiftUI
 
 extension WorkspaceStore {
+  func confirmIndexRebuild() {
+    let alert = NSAlert()
+    alert.messageText = "重新建立本地检索索引？"
+    alert.informativeText = "原始聊天与项目文件保留。重建会恢复后台整理。"
+    alert.addButton(withTitle: "重建索引")
+    alert.addButton(withTitle: "取消")
+    if alert.runModal() == .alertFirstButtonReturn { indexOperation("index.rebuild") }
+  }
   func reloadIndexStatus() {
     workspaceRequest(["op":"index.status"],as:HistoryIndexStatus.self) {result in
-      if result.ok {self.indexStatus=result.data}
+      if result.ok {self.indexStatus=result.data} else {self.indexWarning="索引状态暂不可读，请重试。"}
     }
   }
-  func indexOperation(_ op:String,value:Any? = nil) {
+  func indexOperation(_ op:String,value:Any? = nil,completion:@escaping ()->Void = {}) {
     var body:[String:Any]=["op":op]
     if let value {body[op == "index.quota" ? "bytes":"value"]=value}
     workspaceRequest(body,as:HistoryIndexStatus.self) {result in
       if result.ok {self.indexStatus=result.data;self.indexWarning="";self.prepareIndex()}
       else {self.indexWarning="索引操作未完成："+(result.error ?? "本地服务错误")}
+      completion()
     }
   }
 }
 struct IndexSettingsView: View {
-  @EnvironmentObject var store:WorkspaceStore
-  @State private var quota=64
-  var body:some View {
-    Form {
-      Section("本地索引") {
-        LabeledContent("处理方式",value:"本地 · 后台异步 · 默认不调用模型")
-        Text("索引用于定位原文，不生成长期记忆。每条文本最多保留 4 个原文跨度用于整理候选；候选不代表完整语义。").font(.caption).foregroundStyle(.secondary)
-        if let status=store.indexStatus {
-          Toggle("暂停后台整理",isOn:Binding(get:{status.paused},set:{store.indexOperation("index.pause",value:$0)})).accessibilityIdentifier("index.pause")
-          LabeledContent("状态",value:!status.available ? "索引不可用，聊天仍可使用":status.fault == 2 ? "缓存配额已满":status.fault != 0 ? "整理未完成":status.paused ? "已暂停":status.pending>0 ? "正在整理":"已整理")
-          LabeledContent("已索引文本",value:"\(max(0,status.documents)) 条")
-          LabeledContent("待处理文本",value:"\(max(0,status.pending)) 条")
-          LabeledContent("已准备原文跨度",value:"\(max(0,status.prepared)) 条文本")
-          if status.partial>0 {Text("\(status.partial) 条文本的候选跨度为部分覆盖；这不影响完整原文保存。").font(.caption).foregroundStyle(.secondary)}
-          LabeledContent("索引数据库空间",value:ByteCountFormatter.string(fromByteCount:status.bytes,countStyle:.file))
-          Text("此处只计算派生索引数据库；聊天原文、SQLite 日志和重建时的临时空间另计。").font(.caption).foregroundStyle(.secondary)
-        }
+  @EnvironmentObject var store: WorkspaceStore
+  @Environment(\.openWindow) private var openWindow
+  @Environment(\.dismiss) private var dismiss
+  @State private var quota = 64
+  @State private var editingQuota = false
+  @State private var action: IndexReview?
+  @State private var saving = false
+
+  private enum IndexReview: String, Identifiable {
+    case rebuild, clear
+    var id: String { rawValue }
+  }
+  private func change(_ op:String,value:Any?=nil) {
+    guard !saving else {return}
+    saving=true
+    store.indexOperation(op,value:value){saving=false}
+  }
+  private func row<Control:View>(_ name:String,_ description:String,@ViewBuilder control:()->Control)->some View {
+    HStack(spacing:18) {
+      VStack(alignment:.leading,spacing:4) {
+        Text(name).font(.body.weight(.medium))
+        Text(description).font(.callout).foregroundStyle(.secondary)
       }
-      Section("缓存配额") {
+      Spacer(minLength:14);control()
+    }.padding(.horizontal,20).padding(.vertical,12).frame(minHeight:64)
+  }
+  private func statusText(_ status:HistoryIndexStatus)->String {
+    if !status.available {return "索引不可用"}
+    if status.fault==2 {return "空间上限已满"}
+    if status.fault != 0 {return "整理未完成"}
+    if status.paused {return "已暂停 · 待整理 \(status.pending) 段"}
+    return status.pending>0 ? "\(status.pending) 段内容等待整理" : "已整理 \(status.documents) 段内容"
+  }
+  var body: some View {
+    VStack(alignment:.leading,spacing:22) {
+      if let status=store.indexStatus {
+        VStack(spacing:0) {
+          row("本地聊天索引","每轮结束后在后台整理，不调用 AI 服务。") {
+            Toggle("启用本地聊天索引",isOn:Binding(get:{!status.paused},set:{change("index.pause",value:!$0)}))
+              .toggleStyle(.switch).labelsHidden().accessibilityIdentifier("index.enabled")
+          }
+          Divider()
+          row("检索范围","家庭空间仅包含明确共享的内容。") {Text("当前身份允许访问的聊天").foregroundStyle(.secondary)}
+          Divider()
+          row("整理状态","新消息可以立即查看，索引会在后台更新。") {
+            Text(statusText(status)).foregroundStyle(status.fault != 0 ? Color.orange:.secondary)
+              .accessibilityIdentifier("index.status")
+          }
+        }.background(store.themeSurface,in:RoundedRectangle(cornerRadius:10))
+        VStack(alignment:.leading,spacing:8) {
+          Text("存储与处理").font(.headline)
+          VStack(spacing:0) {
+            row("处理方式","不等待索引完成即可继续聊天。") {Text("后台低优先级 · 本地分批处理").foregroundStyle(.secondary)}
+            Divider()
+            row("空间上限","达到上限时暂停整理，原始聊天保留。") {
+              Menu(status.automaticQuota ? "自动管理" : "\(status.quota/1_048_576) MiB") {
+                Button("自动管理（64 MiB）") {change("index.quota",value:0)}
+                Button("自定容量…") {quota=Int(status.quota/1_048_576);editingQuota=true}
+              }.fixedSize().accessibilityIdentifier("index.quota")
+            }
+            Divider()
+            row("本地语义检索","可选增强需要本地语义模型。当前使用原文匹配。") {
+              Toggle("本地语义检索暂未安装",isOn:.constant(false)).toggleStyle(.switch).labelsHidden().disabled(true)
+            }
+          }.background(store.themeSurface,in:RoundedRectangle(cornerRadius:10))
+        }
         HStack {
-          TextField("最大索引空间（MiB）",value:$quota,format:.number)
-          Button("应用配额") {store.indexOperation("index.quota",value:Int64(quota)*1048576)}.disabled(quota<1||quota>4096)
+          Button(status.paused ? "继续整理" : "暂停整理") {change("index.pause",value:!status.paused)}
+            .accessibilityIdentifier("index.pause")
+          Button("重建索引…"){action = .rebuild}.accessibilityIdentifier("index.rebuild")
+          Button("清除索引…"){action = .clear}.accessibilityIdentifier("index.clear")
+          Spacer()
+          Button("搜索旧聊天…"){
+            store.route="search";dismiss()
+            if let window=NSApp.windows.first(where:{$0.identifier?.rawValue.contains("workspace")==true}) {window.makeKeyAndOrderFront(nil)}
+            else {openWindow(id:"workspace")}
+          }.buttonStyle(.borderedProminent)
         }
-        Text("达到配额后保留待处理队列，聊天仍然保存。可以提高配额或重建；配额不代表整个应用的磁盘占用。").font(.caption).foregroundStyle(.secondary)
+        Text("清除索引只移除可重建的检索数据。已索引 \(status.documents) 段，已准备原文跨度 \(status.prepared) 段，派生数据库占用 \(ByteCountFormatter.string(fromByteCount:status.bytes,countStyle:.file))。")
+          .font(.caption).foregroundStyle(.secondary)
+        if status.partial>0 {Text("\(status.partial) 段文本的候选跨度只覆盖部分原文。").font(.caption).foregroundStyle(.secondary)}
+      } else if store.indexWarning.isEmpty {
+        ProgressView("正在读取本地索引…")
       }
-      Section("整理与恢复") {
-        HStack {
-          Button("继续整理索引",action:store.prepareIndex)
-          Button("重建派生索引…") {
-            let alert=NSAlert();alert.messageText="重新建立本地检索索引？"
-            alert.informativeText="原始聊天与项目文件保留。检索结果会在后台重新生成，期间可能暂不完整。"
-            alert.addButton(withTitle:"重建索引");alert.addButton(withTitle:"取消")
-            if alert.runModal() == .alertFirstButtonReturn {store.indexOperation("index.rebuild")}
-          }.accessibilityIdentifier("index.rebuild")
-        }
-        if !store.indexWarning.isEmpty {Text(store.indexWarning).foregroundStyle(.orange)}
+      if !store.indexWarning.isEmpty {
+        HStack {Text(store.indexWarning).foregroundStyle(.orange);Button("重新读取"){store.reloadIndexStatus()}}
       }
-    }.formStyle(.grouped).onAppear {store.reloadIndexStatus()}
-      .onChange(of:store.indexStatus?.quota) {_,bytes in if let bytes {quota=Int(bytes/1048576)}}
+    }.disabled(saving).onAppear(perform:store.reloadIndexStatus)
+      .onChange(of:store.identityEpoch){_,_ in saving=false;editingQuota=false;action=nil}
+      .sheet(isPresented:$editingQuota) {
+        VStack(alignment:.leading,spacing:14) {
+          Text("索引空间上限").font(.title2.weight(.semibold))
+          TextField("容量（MiB）",value:$quota,format:.number).textFieldStyle(.roundedBorder)
+          Text("可设置 1 至 4096 MiB。仅计算派生索引数据库的空间。").foregroundStyle(.secondary)
+          HStack {Button("取消"){editingQuota=false};Spacer();Button("应用配额"){editingQuota=false;change("index.quota",value:Int64(quota)*1_048_576)}.disabled(!(1...4096).contains(quota))}
+        }.padding(24).frame(width:430)
+      }
+      .alert(item:$action) { choice in
+        let rebuilding=choice == .rebuild
+        return Alert(title:Text(rebuilding ? "重新建立本地检索索引？":"清除当前身份的聊天索引？"),
+          message:Text(rebuilding ? "原始聊天与项目文件保留。重建会恢复后台整理。" : "清除派生索引并暂停整理。原始聊天保留，可随时重建。"),
+          primaryButton:rebuilding ? .default(Text("重建索引")){change("index.rebuild")} : .destructive(Text("清除索引")){change("index.clear")},secondaryButton:.cancel(Text("取消")))
+      }
   }
 }

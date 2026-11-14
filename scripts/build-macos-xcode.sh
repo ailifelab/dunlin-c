@@ -14,6 +14,8 @@ case "${1:-}" in
     test -n "${UNLOCALIZED_RESOURCES_FOLDER_PATH:-}"
     resources="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"
     mkdir -p "$resources/ThirdParty"
+    mkdir -p "$resources/ContextStrategies/extractive"
+    cp compat/context/extractive/dunlin.json compat/context/extractive/strategy.py "$resources/ContextStrategies/extractive/"
     cp dunlin-copilot/assets/DunlinCopilot.icns "$resources/"
     cp vendor/libyaml/License "$resources/ThirdParty/libyaml-MIT.txt"
     cp build/native-deps/macos26/licenses/json-c.txt "$resources/ThirdParty/json-c-MIT.txt"

@@ -53,6 +53,11 @@ static dunlin_model_status project(void *ctx,const dunlin_model_config *model,co
     if(status!=DUNLIN_MODEL_OK||!json_object_is_type(view,json_type_array)){json_object_put(view);return status==DUNLIN_MODEL_OK?DUNLIN_MODEL_INVALID:status;}
     /* Inner text-only checkpoint/knowledge services never receive raw base64.
      * Pixels are added only to retained source-tagged turns, after compression. */
+    int64_t last_user=-1;
+    for(size_t i=0;i<json_object_array_length(history);i++){
+        int64_t seq=0;J *m=json_object_array_get_idx(history,i);
+        if(source(p,m,&seq)&&!strcmp(json_object_get_string(get(m,"role")),"user"))last_user=seq;
+    }
     unsigned images=0;
     for(size_t i=0;i<json_object_array_length(view);i++){
         J *m=json_object_array_get_idx(view,i);int64_t seq=0;J *canonical=source(p,m,&seq);
@@ -61,7 +66,7 @@ static dunlin_model_status project(void *ctx,const dunlin_model_config *model,co
             if(!meta){json_object_put(view);return fail(error,cap,"附件引用已变化，未发送请求。");}json_object_put(meta);
             char hash[65];dc_attachment_message_hash(canonical,hash);
             if(dl_attachments_info(p->store->attachments,DL_ATTACHMENT_CHAT,p->chat,seq,hash,&a)!=DL_ATTACHMENT_OK){json_object_put(view);return DUNLIN_MODEL_INVALID;}
-            if(a.content.format==DL_ATTACHMENT_PNG&&p->images){
+            if(a.content.format==DL_ATTACHMENT_PNG&&p->images&&(!p->omit_history_images||seq>=last_user)){
                 void *data=NULL;size_t n=0;char *url=NULL;
                 if(!resource(p,canonical,seq,&a,&data,&n)||dl_png_data_url(data,n,&url)!=DL_IMAGE_OK){free(data);json_object_put(view);return fail(error,cap,"无法准备图片输入，原图保留。");}free(data);
                 J *content=get(m,"content"),*parts=json_object_new_array(),*text=json_object_new_object(),*image=json_object_new_object(),*location=json_object_new_object();
@@ -72,7 +77,7 @@ static dunlin_model_status project(void *ctx,const dunlin_model_config *model,co
                 json_object_array_add(parts,text);json_object_array_add(parts,image);json_object_object_add(m,"content",parts);images++;
             }
         }
-        const char *private_keys[]={"_dunlin_source_seq","_dunlin_attachments","_dunlin_display","_dunlin_profile","_dunlin_observation"};
+        const char *private_keys[]={"_dunlin_source_seq","_dunlin_attachments","_dunlin_display","_dunlin_message_id","_dunlin_profile","_dunlin_observation"};
         for(size_t k=0;k<sizeof private_keys/sizeof *private_keys;k++)json_object_object_del(m,private_keys[k]);
     }
     size_t schemas=bytes(tools),size=bytes(view);int fits=json_object_array_length(view)<=p->limits->max_messages&&size<p->limits->max_context_bytes&&schemas<p->limits->max_context_bytes-size;
@@ -88,7 +93,7 @@ static dunlin_model_status project(void *ctx,const dunlin_model_config *model,co
     *out=view;return DUNLIN_MODEL_OK;
 }
 const dunlin_context_projector_v1 *dc_attachment_projector(dc_attachment_projection *p,dc_store *store,
-    const char *chat,J **canonical,int images,const dunlin_context_projector_v1 *next,const ah_limits *limits,const dc_hooks *hooks){
+    const char *chat,J **canonical,int images,int omit_history_images,const dunlin_context_projector_v1 *next,const ah_limits *limits,const dc_hooks *hooks){
     if(!p||!store||!canonical||!limits)return next;
-    *p=(dc_attachment_projection){.service={p,project},.next=next,.store=store,.chat=chat,.canonical=canonical,.images=images,.limits=limits,.hooks=hooks};return &p->service;
+    *p=(dc_attachment_projection){.service={p,project},.next=next,.store=store,.chat=chat,.canonical=canonical,.images=images,.omit_history_images=omit_history_images,.limits=limits,.hooks=hooks};return &p->service;
 }

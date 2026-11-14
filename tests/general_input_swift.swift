@@ -14,7 +14,7 @@ import Foundation
   var other = try decoder.decode(GeneralPreferences.self, from: Data("{}".utf8))
   other.textSize = .small
   assert(personal.textSize == .large && other.sendKey == .returnKey && !other.notifyOnCompletion)
-  assert(Set(ChatTextSize.allCases.map(\.points)) == Set([14.0,16.0,18.0]))
+  assert(Set(ChatTextSize.allCases.map(\.points)) == Set([13.0,14.0,18.0]))
   for policy in ChatSendKey.allCases {
    for raw in 0..<16 {
     let modifiers = ComposerModifiers(rawValue: raw)

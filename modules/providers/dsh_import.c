@@ -35,7 +35,7 @@ void dc_config_import_fresh_alias(J *provider,J *existing,J *additional,J *warni
  char alias[65],suffix[65];for(int attempt=0;attempt<16;attempt++){nonce(suffix);snprintf(alias,sizeof alias,"%.44s-imported-%.8s",route,suffix);if(!alias_used(existing,alias)&&!alias_used(additional,alias))break;}
  add(provider,"routeID",alias);warn(warnings,"provider_alias_renamed");
 }
-static int one_provider(const char *route,J *source,J *existing,J *models,J *providers,J *warnings,const char *base,J **error){
+static int one_provider(const char *route,J *source,J *existing,J *models,J *providers,J *warnings,J *source_providers,const char *base,J **error){
  char path[256];if(!ident(route))return issue(error,"invalid_route",base);snprintf(path,sizeof path,"%s.providers.%s",base,route);
  const char *const keys[]={"displayName","api","baseURL","apiKeyEnv","apiKey","models",NULL};
  if(!fields(source,keys,path,error))return 0;
@@ -50,6 +50,9 @@ static int one_provider(const char *route,J *source,J *existing,J *models,J *pro
  J *provider=json_object_new_object();add(provider,"id",provider_id);add(provider,"routeID",route);add(provider,"name",name?name:route);add(provider,"endpoint",url);add(provider,"protocolName",wire);json_object_object_add(provider,"credentialRevision",json_object_new_int(0));if(reference)add(provider,"keyEnvironment",reference);dc_config_import_fresh_alias(provider,existing,providers,warnings);
  if(get(source,"apiKey"))warn(warnings,"credential_value_omitted");
  json_object_array_add(providers,provider);
+ J *origin=json_object_new_object();
+ add(origin,"path",path);add(origin,"api",str(source,"api"));
+ json_object_object_add(source_providers,provider_id,origin);
  const char *const model_keys[]={"id","name","api","reasoning","input","contextWindow","maxTokens","cost",NULL};
  for(size_t i=0;i<json_object_array_length(list);i++){
   J *raw=json_object_array_get_idx(list,i);char item_path[320];snprintf(item_path,sizeof item_path,"%s.models[%zu]",path,i);
@@ -71,11 +74,11 @@ static int one_provider(const char *route,J *source,J *existing,J *models,J *pro
  }
  return 1;
 }
-static int provider_map(J *source,J *existing,J *models,J *providers,J *warnings,const char *base,J **error){
+static int provider_map(J *source,J *existing,J *models,J *providers,J *warnings,J *source_providers,const char *base,J **error){
  const char *const keys[]={"providers","defaultModel","model",NULL};if(!fields(source,keys,base,error))return 0;
  J *map=get(source,"providers");if(!json_object_is_type(map,json_type_object)||!json_object_object_length(map))return issue(error,"explicit_providers_required",base);if(json_object_object_length(map)>256)return issue(error,"configuration_limit",base);
  if(get(source,"defaultModel")||get(source,"model"))warn(warnings,"default_model_not_replaced");
- json_object_object_foreach(map,route,value){if(!one_provider(route,value,existing,models,providers,warnings,base,error))return 0;}
+ json_object_object_foreach(map,route,value){if(!one_provider(route,value,existing,models,providers,warnings,source_providers,base,error))return 0;}
  return 1;
 }
 static int static_tree(J *v,const char *path,J **error){
@@ -84,9 +87,9 @@ static int static_tree(J *v,const char *path,J **error){
  }else if(json_object_is_type(v,json_type_array))for(size_t i=0;i<json_object_array_length(v);i++){char child[384];snprintf(child,sizeof child,"%.*s[%zu]",(int)prefix(path,240),path,i);if(!static_tree(json_object_array_get_idx(v,i),child,error))return 0;}
  return 1;
 }
-int dc_config_import_dsh(J *document,J *existing,J *models,J *providers,J *warnings,J **diagnostic){
+int dc_config_import_dsh(J *document,J *existing,J *models,J *providers,J *warnings,J *source_providers,J **diagnostic){
  if(!static_tree(document,"$",diagnostic))return -1;
- if(get(document,"providers"))return provider_map(document,existing,models,providers,warnings,"$",diagnostic)?1:-1;
+ if(get(document,"providers"))return provider_map(document,existing,models,providers,warnings,source_providers,"$",diagnostic)?1:-1;
  if(!json_object_is_type(document,json_type_array))return 0;
  int found=0;
  for(size_t i=0;i<json_object_array_length(document);i++){
@@ -96,7 +99,7 @@ int dc_config_import_dsh(J *document,J *existing,J *models,J *providers,J *warni
   if(get(entry,"disabled")&&!json_object_is_type(get(entry,"disabled"),json_type_boolean)){issue(diagnostic,"invalid_disabled_flag",path);return -1;}
   if(!eq(id,"llm-pi-ai")||json_object_get_boolean(get(entry,"disabled"))){warn(warnings,"plugin_declaration_not_installed");continue;}
   if(found){issue(diagnostic,"multiple_provider_blocks_not_supported",path);return -1;}found=1;char base[96];snprintf(base,sizeof base,"%s.config",path);
-  if(!provider_map(get(entry,"config"),existing,models,providers,warnings,base,diagnostic))return -1;
+  if(!provider_map(get(entry,"config"),existing,models,providers,warnings,source_providers,base,diagnostic))return -1;
  }
  if(!found){issue(diagnostic,"explicit_providers_required","$");return -1;}
  warn(warnings,"static_dsh_subset_only");return 1;

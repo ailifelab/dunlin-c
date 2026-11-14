@@ -39,8 +39,8 @@ private struct Failure: Error, CustomStringConvertible { let description: String
     let endpoint = args[i+1]
     let hostile = "<script>window.__modelRan = true; fetch('\(endpoint)/script')</script>\n<img src='\(endpoint)/pixel'><iframe src='\(endpoint)/frame'></iframe>\n\n[可点击的链接](\(endpoint)/explicit-link)"
     let text = "# 原始长回复\n\n" + String(repeating: "这一段说明用于检验换行与尺寸。Please preserve the actual source. ", count: 25) + "\n\n" + hostile
-    func content(_ source: String, dark: Bool = false) -> AnyView {
-      AnyView(ChatHTMLContent(source: source).environment(\.chatBodySize, 16).environment(\.colorScheme, dark ? .dark : .light))
+    func content(_ source: String, dark: Bool = false, size: ChatTextSize = .standard) -> AnyView {
+      AnyView(ChatHTMLContent(source: source).environment(\.chatBodySize, CGFloat(size.points)).environment(\.colorScheme, dark ? .dark : .light))
     }
     let host = NSHostingView(rootView: content(text))
     let window = NSWindow(contentRect: NSRect(x: 0,y: 0,width: 900,height: 1400), styleMask: .borderless, backing: .buffered, defer: false)
@@ -73,6 +73,24 @@ private struct Failure: Error, CustomStringConvertible { let description: String
     let narrow = (try await evaluate(web, "document.querySelector('article').getBoundingClientRect().height") as! NSNumber).doubleValue
     try check(narrow > wide, "resize did not wrap content")
     try await waitFor("resize auto height") { host.layoutSubtreeIfNeeded();return abs(web.frame.height - ceil(narrow)) <= 2 }
+    for choice in [ChatTextSize.small, .large, .standard] {
+      host.rootView = content(text, size: choice)
+      let expected = choice.points
+      let deadline = Date().addingTimeInterval(10)
+      var measured = [Double]()
+      while Date() < deadline {
+        host.layoutSubtreeIfNeeded()
+        try await Task.sleep(for: .milliseconds(50))
+        let metrics = try? await evaluate(web, """
+          (() => {const p=document.querySelector('article p'); if (!p) return [];
+          const style=getComputedStyle(p); return [parseFloat(style.fontSize),parseFloat(style.lineHeight)]})()
+          """)
+        measured = (metrics as? [NSNumber])?.map(\.doubleValue) ?? []
+        if measured == [expected, expected * 1.5] { break }
+      }
+      try check(measured == [expected, expected * 1.5], "live font and line height: \(choice) \(measured)")
+      print("PASS rendered \(choice) chat body \(measured[0]) pt, line height \(measured[1]) pt")
+    }
     // Actual SwiftUI updates race old WebKit completion. The visible and measured
     // result must correspond to the final source and theme, not the long draft.
     host.rootView = content("# 临时流式内容\n\n" + String(repeating: "temporary ",count: 100))

@@ -18,7 +18,16 @@ with tempfile.TemporaryDirectory(prefix='dunlin-all-npm-') as tmp:
  def command(name,args,chat=True):
   r=ok('extensions.command',**ref,command=name,arguments=args,**({'chat':'owned-chat'} if chat else {}));assert r['ok'],r;return r['data']
  def http(url,method='GET',body=None):
-  r=command('http',dict(url=url,method=method,body=body or {}));assert r['status']<400,r
+  r=command('http',dict(url=url,method=method,body=body or {}))
+  if 'pendingHandle' in r:
+   handle=r['pendingHandle'];until=time.monotonic()+30
+   try:
+    while True:
+     pending=command('http.pending',dict(id=handle))
+     if pending.get('ready'):r=pending['response'];break
+     assert time.monotonic()<until,pending;time.sleep(.05)
+   finally:command('http.pending',dict(id=handle,release=True))
+  assert r['status']<400,r
   if 'bodyHandle' in r:
    import base64
    chunks=[base64.b64decode(command('http.body',dict(id=r['bodyHandle'],offset=i))['base64']) for i in range(0,r['bytes'],98304)];command('http.body',dict(id=r['bodyHandle'],release=True));r['body']=json.loads(b''.join(chunks))
@@ -30,7 +39,7 @@ with tempfile.TemporaryDirectory(prefix='dunlin-all-npm-') as tmp:
    name=pin['name'];repo='https://github.com/'+pin['repository'];old=previous[name];new=pin['version'];installed=[]
    for version in [old,new]:
     rows=ok('catalog.npm.install',repository=repo,version=version);row=next(r for r in rows if r['package']==name);assert not row['enabled'] and not row['active'],row
-    installed.append(version+'+dunlin.2');assert any(v['version']==installed[-1] for v in row['versions']),row
+    installed.append(version+'+dunlin.3');assert any(v['version']==installed[-1] for v in row['versions']),row
    ref={k:row[k] for k in ['source','package']};assert len(row['versions'])==2,row
    configuration={'projectSessionMode':'inherit','landfill':False} if name=='dsh-project-manager' else {}
    ok('extensions.bind',**ref,version=installed[0],enabled=True,acceptHostPermissions=True,config=configuration)

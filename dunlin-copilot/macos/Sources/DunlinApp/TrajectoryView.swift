@@ -421,7 +421,7 @@ struct TrajectoryView: View {
           }.accessibilityIdentifier("trajectory.source")
         }
         ScrollView {
-          Text(detail.body.formatted).font(.system(size: 11, design: .monospaced)).textSelection(
+          Text(detail.body.formatted).font(.system(.caption, design: .monospaced)).textSelection(
             .enabled
           ).frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -551,7 +551,7 @@ struct TraceExportView: View {
       Text("已移除模型密钥及结构化敏感字段。用户文本、文件内容和命令输出仍可能包含私人信息，请检查后保存或分享。此导出只包含所选运行片段。").font(.callout)
         .foregroundStyle(.secondary)
       ScrollView {
-        Text(value.text).font(.system(size: 12, design: .monospaced)).textSelection(.enabled).frame(
+        Text(value.text).font(.system(.callout, design: .monospaced)).textSelection(.enabled).frame(
           maxWidth: .infinity, alignment: .leading)
       }
       HStack {

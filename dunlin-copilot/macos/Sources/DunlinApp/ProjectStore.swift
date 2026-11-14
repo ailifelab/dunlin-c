@@ -58,7 +58,6 @@ extension WorkspaceStore {
   func browseProjects() {
     guard !busy, !workspaceTransitioning else { return }
     route = "projects"
-    searchVisible = false
     reloadProjects()
   }
   func openProject(_ project: ProjectRecord) {
@@ -66,7 +65,6 @@ extension WorkspaceStore {
     if let selected { persistDraft(selected) }
     selectedProject = project.id
     route = "project"
-    searchVisible = false
     projectPage = "chats"
     invalidateProjectContent()
     fileDirectory = ""
@@ -84,7 +82,6 @@ extension WorkspaceStore {
     if canonical.revision > 0 {
       selectedProject = canonical.id
       route = "projectSettings"
-      searchVisible = false
     }
   }
   func chooseProjectDefaultFolder(_ project: ProjectRecord) {

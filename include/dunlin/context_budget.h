@@ -11,4 +11,8 @@ typedef enum {DC_CONTEXT_VALID=0,DC_CONTEXT_UNKNOWN=1,DC_CONTEXT_INVALID=2} dc_c
  * Zero capability means unknown; never manufactures a guaranteed upper bound.
  * Units are tokens only when supplied by a compatible tokenizer/provider. */
 dc_context_status dc_context_budget(const dc_context_capabilities *,dc_context_range *);
+/* Editor preview: ignore a stale saved choice, clamp an explicit signed input,
+ * or select the recommendation when there is no explicit input. */
+dc_context_status dc_context_editor_budget(const dc_context_capabilities *,
+    int has_choice, int64_t choice, dc_context_range *);
 #endif

@@ -6,6 +6,8 @@ import CDesktop
 struct AgentJob: Decodable, Identifiable {
   let id, project, chat, parent, model, state, task, outcome: String
   let generation, sequence: Int64
+  let workspace, policy:String?
+  let native:Bool?
   var statusLabel: String {
     switch state {
     case "queued": return "等待执行"
@@ -55,9 +57,10 @@ extension WorkspaceStore {
       agentQueueRunning=false; agentError="任务模型不可用，或当前仍有执行中的任务。"; return
     }
     guard configurationReady,!switchingModel,!configSaving,!checkingConnection,
-      let project=projects.first(where:{$0.id==job.project}) else{return}
+      let workspace=agentWorkspace(job) else{return}
     agentQueueRunning=false;agentQueueProject=job.project;busy=true;stopping=false;agentError=""
-    launchAgentWorker(job,project:project)
+    nativeAgentFailures.remove(job.id)
+    launchAgentWorker(job,path:workspace.path,policy:workspace.policy)
   }
   func cancelAgent(_ job:AgentJob) {
     if let worker=agentWorkers[job.id] {worker.cancel();return}
@@ -116,7 +119,7 @@ struct AgentCollaborationView:View {
       VStack(alignment:.leading,spacing:22) {
         HStack {
           VStack(alignment:.leading,spacing:6) {
-            Text("项目协作").font(.system(size:27,weight:.semibold))
+            Text("项目协作").font(.title.weight(.semibold))
             Text("\(participants.count) 段聊天协作中 · 共享任务与明确发送的消息").foregroundStyle(.secondary)
           }
           Spacer()
@@ -303,6 +306,33 @@ final class AgentApprovalRequest: @unchecked Sendable {
   }
 }
 extension WorkspaceStore {
+  private func agentWorkspace(_ job:AgentJob)->(path:String,policy:String)? {
+    if let project=projects.first(where:{$0.id==job.project}) {return (project.path,project.policy)}
+    guard job.native == true,let path=job.workspace,path.hasPrefix("/") else{return nil}
+    return (path,job.policy ?? "ask")
+  }
+  // Only explicit SDK followups whose C admission is complete enter this
+  // path. This never starts the user's unrelated manual project queue.
+  func startNativePluginJobs() {
+    startNativeModelHelpers()
+    if nativeAgentEpoch != identityEpoch {nativeAgentEpoch=identityEpoch;nativeAgentReading=false;nativeAgentFailures.removeAll()}
+    guard pendingIdentitySwitch == nil,!terminating,!nativeAgentReading,configurationReady,!switchingModel,!configSaving,!checkingConnection,
+      !agentQueueRunning,(!busy || !agentWorkers.isEmpty),handle != nil else{return}
+    nativeAgentReading=true
+    readLocalView(["op":"agents.nativePending"],as:[AgentJob].self) {result in
+      self.nativeAgentReading=false
+      guard self.pendingIdentitySwitch == nil,result.ok,let jobs=result.data,!self.agentQueueRunning,self.configurationReady,
+        !self.switchingModel,!self.configSaving,!self.checkingConnection,
+        !self.busy || !self.agentWorkers.isEmpty else{return}
+      for job in jobs where self.agentWorkers[job.id]==nil && !self.nativeAgentFailures.contains(job.id) {
+        if self.agentWorkers.count+self.helperWorkers.count>=2 {break}
+        guard let workspace=self.agentWorkspace(job),!self.agentWorkerProjects.values.contains(workspace.path),
+          self.profiles.contains(where:{$0.id==job.model}) else{continue}
+        self.busy=true;self.stopping=false
+        self.launchAgentWorker(job,path:workspace.path,policy:workspace.policy)
+      }
+    }
+  }
   func startAgentQueue(project:String) {
     guard !busy,configurationReady,!switchingModel,!configSaving,!checkingConnection else{return}
     agentQueueProject=project;agentQueueRunning=true;busy=true;stopping=false;agentError=""
@@ -319,25 +349,25 @@ extension WorkspaceStore {
   func fillAgentWorkers(_ pending:[AgentJob]) {
     if agentQueueRunning {
       for job in pending where job.state=="queued" && (agentQueueProject.isEmpty || job.project==agentQueueProject) && agentWorkers[job.id]==nil {
-        if agentWorkers.count>=2 {break}
-        guard let project=projects.first(where:{$0.id==job.project}) else{continue}
-        if agentWorkerProjects.values.contains(project.path) {continue}
-        launchAgentWorker(job,project:project)
+        if agentWorkers.count+helperWorkers.count>=2 {break}
+        guard let workspace=agentWorkspace(job) else{continue}
+        if agentWorkerProjects.values.contains(workspace.path) {continue}
+        launchAgentWorker(job,path:workspace.path,policy:workspace.policy)
       }
     }
     if agentWorkers.isEmpty {
-      agentQueueRunning=false;busy=false;stopping=false
+      agentQueueRunning=false;busy = !helperWorkers.isEmpty;if !busy {stopping=false}
       reload();loadMessages();prepareIndex();reloadGrants();reloadReceipts()
     }
   }
-  private func launchAgentWorker(_ job:AgentJob,project:ProjectRecord) {
+  private func launchAgentWorker(_ job:AgentJob,path:String,policy:String) {
     guard let owner=handle,let profile=profiles.first(where:{$0.id==job.model}) else {
       agentQueueRunning=false;agentError="任务模型不可用，请在模型设置中检查。";return
     }
     let box=Callbacks(),epoch=identityEpoch,revision=configRevision
     let approvalOrigin=AgentApprovalOrigin(job:job)
     let contextPolicy=contextPreferences,knowledgePolicy=knowledgePreferences
-    agentWorkers[job.id]=box;agentWorkerProjects[job.id]=project.path;agentRunningIDs.insert(job.id)
+    agentWorkers[job.id]=box;agentWorkerProjects[job.id]=path;agentRunningIDs.insert(job.id)
     box.event = {name,text in
       if name=="agent.approval" {approvalOrigin.update(text);return}
       if ["model.request","delta","chat.commit"].contains(name) {
@@ -373,11 +403,11 @@ extension WorkspaceStore {
         DispatchQueue.main.async {self.finishAgentWorker(job,status:"failed",detail:"无法建立独立执行器或读取模型配置。")};return
       }
       let worker=NativeStoreReference(raw:rawWorker)
-      settings["stream"]=true;settings["show_reasoning"]=true;settings["desktop_tools"]=project.policy
+      settings["stream"]=true;settings["show_reasoning"]=true;settings["desktop_tools"]=policy
       if knowledgePolicy.memory || knowledgePolicy.rag {settings["desktop_knowledge"]=["memory":knowledgePolicy.memory,"rag":knowledgePolicy.rag]}
       if let budget=profile.contextRange {
         settings["max_tokens"]=Int(budget.output)
-        settings["desktop_context"]=["modelLimit":profile.contextLimit ?? 0,"deploymentLimit":profile.deploymentLimit ?? 0,"selectedLimit":Int(budget.selected),"outputLimit":profile.effectiveOutputLimit,"requestedOutput":profile.maxOutput,"reserve":profile.contextReserve ?? 512,"strategy":profile.compactionStrategy ?? contextPolicy.strategy,"automatic":contextPolicy.automatic,"threshold":contextPolicy.threshold,"retainTurns":contextPolicy.retainTurns,"summaryOutput":min(contextPolicy.summaryOutput,Int(budget.output))]
+        settings["desktop_context"]=contextPolicy.request(for:profile, budget:budget)
       }
       let raw=String(data:(try? JSONSerialization.data(withJSONObject:settings)) ?? Data(),encoding:.utf8) ?? "{}"
       DispatchQueue.global(qos:.userInitiated).async {
@@ -404,10 +434,12 @@ extension WorkspaceStore {
     if let callbacks=agentWorkers[job.id] {callbacks.approve={_,_ in 0};callbacks.event={_,_ in}}
     agentLiveTruncated.remove(job.id);agentLiveText.removeValue(forKey:job.id);agentSourceRevision[job.id,default:0]+=1
     agentWorkers.removeValue(forKey:job.id);agentWorkerProjects.removeValue(forKey:job.id);agentRunningIDs.remove(job.id)
-    if status != "completed" {agentQueueRunning=false;agentError="任务 \(job.task)：\(detail.isEmpty ? status:detail)"}
+    if status == "unknown" { pendingIdentitySwitch = nil }
+    if status != "completed" {if job.native == true {nativeAgentFailures.insert(job.id)};agentQueueRunning=false;agentError="任务 \(job.task)：\(detail.isEmpty ? status:detail)"}
     // Refresh before admission: completed jobs must not be scheduled twice.
-    if agentWorkers.isEmpty && !agentQueueRunning {busy=false;stopping=false;reload();loadMessages();prepareIndex();reloadGrants();reloadReceipts()}
+    if agentWorkers.isEmpty && helperWorkers.isEmpty && !agentQueueRunning {busy=false;stopping=false;reload();loadMessages();prepareIndex();reloadGrants();reloadReceipts()}
     reloadAgentJobs()
+    if status == "completed" {startNativePluginJobs()}
   }
   private func presentAgentApproval() {
     guard !agentApprovalPresenting else{return}

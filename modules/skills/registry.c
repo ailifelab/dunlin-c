@@ -97,6 +97,31 @@ J *dc_skills_resolve(dc_store *s,const char *project,const char *chat){
  }
  sqlite3_finalize(q);if(rc!=SQLITE_DONE){json_object_put(a);return NULL;}return a;
 }
+static J *set_binding(dc_store *s,const char *scope,const char *id,const char *source,const char *package,const char *mode,const char *version){
+ if(!valid(source,256)||!valid(package,128)||!mode||(strcmp(mode,"inherit")&&strcmp(mode,"enable")&&strcmp(mode,"disable"))||(!strcmp(mode,"enable")&&!valid(version,128)))return reply(0,"invalid_binding",NULL);
+ if(!strcmp(mode,"enable")){
+  sqlite3_stmt *q=prep(s,"SELECT 1 FROM skill_versions WHERE source=? AND package=? AND version=? AND quarantined=0");
+  if(q){bind(q,1,source);bind(q,2,package);bind(q,3,version);}
+  int found=q&&sqlite3_step(q)==SQLITE_ROW;sqlite3_finalize(q);
+  if(!found)return reply(0,"version_missing_or_quarantined",NULL);
+ }
+ sqlite3_stmt *q=prep(s,"INSERT INTO skill_bindings(scope,scope_id,source,package,mode,version) VALUES(?,?,?,?,?,?) ON CONFLICT(scope,scope_id,source,package) DO UPDATE SET mode=excluded.mode,version=excluded.version");
+ if(q){const char *v[]={scope,id,source,package,mode,version?version:""};for(int i=0;i<6;i++)bind(q,i+1,v[i]);}
+ int ok=step(q);return reply(ok,ok?NULL:"storage_error",NULL);
+}
+
+static J *enable_selection(dc_store *s,const char *scope,const char *id,J *items){
+ if(!strcmp(scope,"global")||!json_object_is_type(items,json_type_array)||!json_object_array_length(items))return reply(0,"invalid_selection",NULL);
+ if(!sql(s,"BEGIN IMMEDIATE"))return reply(0,"storage_error",NULL);
+ for(size_t i=0;i<json_object_array_length(items);i++){
+  J *item=json_object_array_get_idx(items,i);
+  J *result=set_binding(s,scope,id,str(item,"source"),str(item,"package"),"enable",str(item,"version"));
+  if(!json_object_get_boolean(get(result,"ok"))){sql(s,"ROLLBACK");return result;}
+  json_object_put(result);
+ }
+ if(!sql(s,"COMMIT")){sql(s,"ROLLBACK");return reply(0,"storage_error",NULL);}
+ return reply(1,NULL,NULL);
+}
 J *dc_skills_request(dc_store *s,J *r){
  const char *op=str(r,"op");if(!op)return reply(0,"invalid_request",NULL);
  if(!strcmp(op,"skills.import"))return import(s,r);
@@ -109,11 +134,8 @@ J *dc_skills_request(dc_store *s,J *r){
  }
  free(project);
  const char *source=str(r,"source"),*package=str(r,"package"),*mode=str(r,"mode"),*version=str(r,"version");
- if(!strcmp(op,"skills.bind")){
-  if(!valid(source,256)||!valid(package,128)||!mode||(strcmp(mode,"inherit")&&strcmp(mode,"enable")&&strcmp(mode,"disable"))||(!strcmp(mode,"enable")&&!valid(version,128)))return reply(0,"invalid_binding",NULL);
-  if(!strcmp(mode,"enable")){sqlite3_stmt *q=prep(s,"SELECT 1 FROM skill_versions WHERE source=? AND package=? AND version=? AND quarantined=0");if(q){bind(q,1,source);bind(q,2,package);bind(q,3,version);}int found=q&&sqlite3_step(q)==SQLITE_ROW;sqlite3_finalize(q);if(!found)return reply(0,"version_missing_or_quarantined",NULL);}
-  sqlite3_stmt *q=prep(s,"INSERT INTO skill_bindings(scope,scope_id,source,package,mode,version) VALUES(?,?,?,?,?,?) ON CONFLICT(scope,scope_id,source,package) DO UPDATE SET mode=excluded.mode,version=excluded.version");if(q){const char *v[]={scope,id,source,package,mode,version?version:""};for(int i=0;i<6;i++)bind(q,i+1,v[i]);}int ok=step(q);return reply(ok,ok?NULL:"storage_error",NULL);
- }
+ if(!strcmp(op,"skills.bind"))return set_binding(s,scope,id,source,package,mode,version);
+ if(!strcmp(op,"skills.enableSelection"))return enable_selection(s,scope,id,get(r,"items"));
  if(!strcmp(op,"skills.update")){
   sqlite3_stmt *q=prep(s,"SELECT local_path FROM skill_versions WHERE source=? AND package=? AND local_path<>'' ORDER BY rowid DESC LIMIT 1");if(q){bind(q,1,source);bind(q,2,package);}char *path=q&&sqlite3_step(q)==SQLITE_ROW?strdup((const char*)sqlite3_column_text(q,0)):NULL;sqlite3_finalize(q);if(!path)return reply(0,"source_unavailable",NULL);J *request=json_object_new_object();json_object_object_add(request,"path",json_object_new_string(path));J *result=import(s,request);json_object_put(request);free(path);return result;
  }

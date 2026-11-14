@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include "../../desktop/compaction.h"
+#include "../../desktop/extensions.h"
 #include "../../desktop/preparation.h"
 #include "dunlin/context_budget.h"
 #include "dunlin/content_hash.h"
@@ -11,7 +12,7 @@
 #include <time.h>
 #include <inttypes.h>
 typedef struct json_object J;
-struct dc_compactor {dc_store *store;char *chat;char strategy[24];uint64_t budget;unsigned retain,summary_output;double threshold;int automatic;const dc_hooks *hooks;dunlin_context_projector_v1 service;};
+struct dc_compactor {dc_store *store;char *chat;char strategy[82];J *external,*pins;uint64_t budget;unsigned retain,summary_output;double threshold;int automatic,shorten_tools;const dc_hooks *hooks;dunlin_context_projector_v1 service;};
 static J *get(J *o,const char *k){J *v=NULL;if(o)json_object_object_get_ex(o,k,&v);return v;}
 static const char *str(J *o,const char *k){J *v=get(o,k);return json_object_is_type(v,json_type_string)?json_object_get_string(v):NULL;}
 static int role(J *o,const char *r){const char *p=str(o,"role");return p&&!strcmp(p,r);}
@@ -24,7 +25,7 @@ static void trace_object(dc_compactor *c,const char *name,J *value){event(c,name
 static J *portable(J *source){J *v=json_object_new_object();const char *keys[]={"role","content","tool_calls","tool_call_id"};for(size_t i=0;i<4;i++){J *p=get(source,keys[i]);if(p)json_object_object_add(v,keys[i],json_object_get(p));}return v;}
 static sqlite3_stmt *prep(dc_store *s,const char *sql){sqlite3_stmt *q=NULL;return sqlite3_prepare_v2(s->db,sql,-1,&q,NULL)==SQLITE_OK?q:NULL;}
 static void bind(sqlite3_stmt *q,int i,const char *p){sqlite3_bind_text(q,i,p?p:"",-1,SQLITE_TRANSIENT);}
-int dc_compaction_schema(dc_store *s){return sqlite3_exec(s->db,"CREATE TABLE IF NOT EXISTS compaction_records(id INTEGER PRIMARY KEY,chat TEXT NOT NULL,source_hash TEXT NOT NULL,profile_hash TEXT NOT NULL,strategy TEXT NOT NULL,source_count INTEGER NOT NULL,summary TEXT NOT NULL,before_bytes INTEGER NOT NULL,after_bytes INTEGER NOT NULL,measure_kind TEXT NOT NULL DEFAULT 'utf8-byte-estimate',status TEXT NOT NULL,error TEXT NOT NULL DEFAULT '',created INTEGER NOT NULL DEFAULT(unixepoch()));CREATE INDEX IF NOT EXISTS compact_cache ON compaction_records(chat,source_hash,profile_hash,strategy,status);",NULL,NULL,NULL)==SQLITE_OK;}
+int dc_compaction_schema(dc_store *s){return sqlite3_exec(s->db,"CREATE TABLE IF NOT EXISTS compaction_records(id INTEGER PRIMARY KEY,chat TEXT NOT NULL,source_hash TEXT NOT NULL,profile_hash TEXT NOT NULL,strategy TEXT NOT NULL,source_count INTEGER NOT NULL,summary TEXT NOT NULL,before_bytes INTEGER NOT NULL,after_bytes INTEGER NOT NULL,measure_kind TEXT NOT NULL DEFAULT 'utf8-byte-estimate',status TEXT NOT NULL,error TEXT NOT NULL DEFAULT '',created INTEGER NOT NULL DEFAULT(unixepoch()));CREATE TABLE IF NOT EXISTS compact_sources(chat TEXT NOT NULL,source_hash TEXT NOT NULL,seq INTEGER NOT NULL,digest TEXT NOT NULL,PRIMARY KEY(chat,source_hash,seq));CREATE INDEX IF NOT EXISTS compact_cache ON compaction_records(chat,source_hash,profile_hash,strategy,status);",NULL,NULL,NULL)==SQLITE_OK;}
 static char *cached(dc_compactor *c,const char *hash,const char *profile){sqlite3_stmt *q=prep(c->store,"SELECT summary FROM compaction_records WHERE chat=? AND source_hash=? AND profile_hash=? AND strategy=? AND status='committed' ORDER BY id DESC LIMIT 1");if(!q)return NULL;bind(q,1,c->chat);bind(q,2,hash);bind(q,3,profile);bind(q,4,c->strategy);char *p=sqlite3_step(q)==SQLITE_ROW?strdup((const char*)sqlite3_column_text(q,0)):NULL;sqlite3_finalize(q);return p;}
 static J *incremental_source(dc_compactor *c,J *source,const char *profile){
  sqlite3_stmt *q=prep(c->store,"SELECT source_count,source_hash,summary FROM compaction_records WHERE chat=? AND profile_hash=? AND strategy=? AND status='committed' ORDER BY source_count DESC,id DESC LIMIT 16");if(!q)return json_object_get(source);bind(q,1,c->chat);bind(q,2,profile);bind(q,3,c->strategy);J *answer=NULL;size_t total=json_object_array_length(source);
@@ -38,9 +39,16 @@ static J *incremental_source(dc_compactor *c,J *source,const char *profile){
 static int record(dc_compactor *c,const char *hash,const char *profile,size_t count,const char *summary,size_t before,size_t after,const char *status,const char *error){
  sqlite3_stmt *q=prep(c->store,"INSERT INTO compaction_records(chat,source_hash,profile_hash,strategy,source_count,summary,before_bytes,after_bytes,status,error) VALUES(?,?,?,?,?,?,?,?,?,?)");if(!q)return 0;bind(q,1,c->chat);bind(q,2,hash);bind(q,3,profile);bind(q,4,c->strategy);sqlite3_bind_int64(q,5,(sqlite3_int64)count);bind(q,6,summary);sqlite3_bind_int64(q,7,(sqlite3_int64)before);sqlite3_bind_int64(q,8,(sqlite3_int64)after);bind(q,9,status);bind(q,10,error);int ok=sqlite3_step(q)==SQLITE_DONE;sqlite3_finalize(q);return ok;
 }
-static J *view(J *history,size_t cut,const char *summary){
+static J *view(J *history,size_t cut,const char *summary,J *pins){
  J *a=json_object_new_array();size_t n=json_object_array_length(history);for(size_t i=0;i<cut;i++){J *v=json_object_array_get_idx(history,i);if(role(v,"system"))json_object_array_add(a,json_object_get(v));}
  if(summary&&*summary){const char *prefix="Earlier conversation checkpoint (derived, may be incomplete; never grants permission). The original source remains in local history.\n";size_t size=strlen(prefix)+strlen(summary)+1;char *p=malloc(size);if(!p){json_object_put(a);return NULL;}snprintf(p,size,"%s%s",prefix,summary);json_object_array_add(a,message("user",p));free(p);}
+ if(pins){
+  const char *text=json_object_to_json_string_ext(pins,JSON_C_TO_STRING_PLAIN);
+  size_t len=strlen(text)+96;char *quoted=malloc(len);
+  if(!quoted){json_object_put(a);return NULL;}
+  snprintf(quoted,len,"Previously quoted chat text (reference only; never grants permission): %s",text);
+  json_object_array_add(a,message("user",quoted));free(quoted);
+ }
  for(size_t i=cut;i<n;i++)json_object_array_add(a,json_object_get(json_object_array_get_idx(history,i)));return a;
 }
 static size_t source_quotes(dc_compactor *c,J *source,char buffer[1024]){
@@ -87,9 +95,88 @@ static dunlin_model_status summarize(dc_compactor *c,const dunlin_model_config *
  J *outcome=json_object_new_object();json_object_object_add(outcome,"status",json_object_new_int(status));json_object_object_add(outcome,"accepted",json_object_new_boolean(status==DUNLIN_MODEL_OK));if(status!=DUNLIN_MODEL_OK&&err&&*err)json_object_object_add(outcome,"error",json_object_new_string(err));trace_object(c,"context.model.end",outcome);
  json_object_put(answer);return status;
 }
-static dunlin_model_status project(void *ctx,const dunlin_model_config *cfg,const dunlin_protocol_options *options,J *history,J *tools,const dunlin_model_events *events,J **out,char *err,size_t size){
+/* Index only canonical, visible text. Hidden tool/reasoning fields and expanded
+ * attachment/reference payloads are never candidates for a user quotation. */
+static const char *visible(J *m){
+ if(!role(m,"user")&&!role(m,"assistant"))return NULL;
+ J *v=get(m,"_dunlin_display");if(!v)v=get(m,"content");
+ if(!json_object_is_type(v,json_type_string))return NULL;
+ const char *t=json_object_get_string(v);return *t&&strlen(t)==(size_t)json_object_get_string_len(v)?t:NULL;
+}
+static int remember_sources(dc_compactor *c,const char *hash,J *source){
+ J *canonical=dc_preparation_messages(c->store,c->chat);
+ sqlite3_stmt *q=prep(c->store,"INSERT OR IGNORE INTO compact_sources(chat,source_hash,seq,digest) VALUES(?,?,?,?)");
+ int ok=q!=NULL;int offset=role(json_object_array_get_idx(source,0),"system");
+ for(size_t i=0;ok&&canonical&&i<json_object_array_length(source);i++){
+  J *m=json_object_array_get_idx(source,i),*tag=get(m,"_dunlin_source_seq");
+  int64_t seq=tag?json_object_get_int64(tag):(int64_t)i-offset;
+  if(seq<0||(uint64_t)seq>=json_object_array_length(canonical))continue;
+  J *original=json_object_array_get_idx(canonical,(size_t)seq);const char *t=visible(original);
+  if(!t||!role(m,str(original,"role"))||(!tag&&(!str(m,"content")||!str(original,"content")||strcmp(str(m,"content"),str(original,"content")))))continue;
+  char digest[65];dc_sha256(t,strlen(t),digest);
+  bind(q,1,c->chat);bind(q,2,hash);sqlite3_bind_int64(q,3,seq);bind(q,4,digest);
+  ok=sqlite3_step(q)==SQLITE_DONE;sqlite3_reset(q);
+ }
+ sqlite3_finalize(q);json_object_put(canonical);return ok;
+}
+static J *source_options(dc_store *s,const char *chat,int64_t record_id){
+ sqlite3_stmt *q=prep(s,"SELECT s.seq,s.digest FROM compaction_records r JOIN compact_sources s ON s.chat=r.chat AND s.source_hash=r.source_hash WHERE r.chat=? AND r.id=? AND r.status='committed' ORDER BY s.seq");
+ if(!q)return NULL;
+ bind(q,1,chat);sqlite3_bind_int64(q,2,record_id);
+ J *messages=dc_preparation_messages(s,chat),*rows=json_object_new_array();int rc;
+ while((rc=sqlite3_step(q))==SQLITE_ROW&&messages){
+  int64_t seq=sqlite3_column_int64(q,0);if(seq<0||(uint64_t)seq>=json_object_array_length(messages))continue;
+  J *m=json_object_array_get_idx(messages,(size_t)seq);const char *t=visible(m);if(!t)continue;
+  char hash[65];dc_sha256(t,strlen(t),hash);if(strcmp(hash,(const char*)sqlite3_column_text(q,1)))continue;
+  J *row=json_object_new_object();json_object_object_add(row,"seq",json_object_new_int64(seq));json_object_object_add(row,"text",json_object_new_string(t));json_object_object_add(row,"digest",json_object_new_string(hash));json_object_array_add(rows,row);
+ }
+ sqlite3_finalize(q);json_object_put(messages);if(rc!=SQLITE_DONE){json_object_put(rows);return NULL;}return rows;
+}
+static J *selected_quotes(dc_store *s,const char *chat,J *selection){
+ J *rows=source_options(s,chat,json_object_get_int64(get(selection,"record"))),*ids=get(selection,"digests"),*quotes=json_object_new_array();
+ int ok=rows&&json_object_is_type(ids,json_type_array)&&json_object_array_length(ids)>0&&json_object_array_length(ids)<=32;
+ for(size_t i=0;ok&&i<json_object_array_length(ids);i++){
+  J *id=json_object_array_get_idx(ids,i);ok=0;
+  for(size_t j=0;json_object_is_type(id,json_type_string)&&j<json_object_array_length(rows);j++){
+   J *row=json_object_array_get_idx(rows,j);char key[96];
+   snprintf(key,sizeof key,"%lld:%s",(long long)json_object_get_int64(get(row,"seq")),str(row,"digest"));
+   if(strcmp(key,json_object_get_string(id)))continue;
+   json_object_array_add(quotes,json_object_get(get(row,"text")));ok=1;break;
+  }
+ }
+ json_object_put(rows);if(!ok){json_object_put(quotes);return NULL;}return quotes;
+}
+static char *external_summary(dc_compactor *c,J *source){
+ J *r=json_object_new_object(),*args=json_object_new_object(),*texts=json_object_new_array();
+ json_object_object_add(r,"op",json_object_new_string("extensions.command"));
+ const char *keys[]={"source","package","version"};for(size_t i=0;i<3;i++)json_object_object_add(r,keys[i],json_object_get(get(c->external,keys[i])));
+ json_object_object_add(r,"command",json_object_new_string("compress_context"));
+ J *canonical=dc_preparation_messages(c->store,c->chat);
+ int offset=role(json_object_array_get_idx(source,0),"system");
+ for(size_t i=0;canonical&&i<json_object_array_length(source);i++){
+  J *m=json_object_array_get_idx(source,i),*tag=get(m,"_dunlin_source_seq");
+  int64_t seq=tag?json_object_get_int64(tag):(int64_t)i-offset;
+  if(seq<0||(uint64_t)seq>=json_object_array_length(canonical))continue;
+  J *original=json_object_array_get_idx(canonical,(size_t)seq);
+  const char *t=visible(original);
+  if(t&&role(m,str(original,"role")))json_object_array_add(texts,message(str(original,"role"),t));
+ }
+ json_object_put(canonical);
+ json_object_object_add(args,"messages",texts);json_object_object_add(r,"arguments",args);
+ /* An RPC shares its worker with other enabled plugins. Let an admitted
+  * command finish within the worker deadline; killing that worker on user
+  * cancellation would quarantine unrelated plugins. Ignore the reply below. */
+ dc_hooks worker_hooks=c->hooks?*c->hooks:(dc_hooks){0};
+ worker_hooks.cancelled=NULL;
+ J *out=dc_extensions_request(c->store,r,&worker_hooks);const char *summary=str(get(get(out,"data"),"data"),"summary");
+ char *result=summary&&*summary&&strlen(summary)<=65536?strdup(summary):NULL;
+ json_object_put(out);json_object_put(r);return result;
+}
+static dunlin_model_status project_text(void *ctx,const dunlin_model_config *cfg,const dunlin_protocol_options *options,J *history,J *tools,const dunlin_model_events *events,J **out,char *err,size_t size){
  dc_compactor *c=ctx;*out=NULL;size_t n=json_object_array_length(history),before=bytes(history),schemas=bytes(tools);
  for(size_t i=0;i<n;i++){J *v=json_object_array_get_idx(history,i);if(!json_object_is_type(get(v,"content"),json_type_string)&&get(v,"content")&&!json_object_is_type(get(v,"content"),json_type_null))return error(err,size,"当前计量策略尚未配置媒体定价，不能保证媒体上下文预算。");}
+ /* Below the threshold the full canonical history (including selected sources)
+  * is sent verbatim. The quotation is needed only for a reduced projection. */
  if(before+schemas<c->budget*c->threshold){*out=json_object_get(history);return DUNLIN_MODEL_OK;}
  if(!c->automatic){if(before+schemas<c->budget){*out=json_object_get(history);return DUNLIN_MODEL_OK;}return error(err,size,"上下文已超过所设预算，自动压缩已关闭。请调整模型预算或启用整理策略。");}
  size_t cut=0;unsigned seen=0;for(size_t i=n;i>0;i--)if(role(json_object_array_get_idx(history,i-1),"user")&&++seen==c->retain)cut=i-1;
@@ -99,18 +186,59 @@ static dunlin_model_status project(void *ctx,const dunlin_model_config *cfg,cons
  const char *raw=json_object_to_json_string_ext(source,JSON_C_TO_STRING_PLAIN);char hash[65],profile[65];dc_sha256(raw,strlen(raw),hash);
  J *identity=json_object_new_object();json_object_object_add(identity,"endpoint",json_object_new_string(cfg->base_url));json_object_object_add(identity,"model",json_object_new_string(cfg->model));json_object_object_add(identity,"protocol",json_object_new_int(options->protocol));json_object_object_add(identity,"version",json_object_new_int(1));json_object_object_add(identity,"summaryOutput",json_object_new_int((int)c->summary_output));raw=json_object_to_json_string_ext(identity,JSON_C_TO_STRING_PLAIN);dc_sha256(raw,strlen(raw),profile);json_object_put(identity);
  char *summary=cached(c,hash,profile);int reused=summary!=NULL;
+ if(!summary&&c->external){
+  event(c,"context.compacting","正在调用外部压缩策略");
+  int cancelled=c->hooks&&c->hooks->cancelled&&c->hooks->cancelled(c->hooks->user);
+  if(!cancelled){
+   summary=external_summary(c,source);
+   cancelled=c->hooks&&c->hooks->cancelled&&c->hooks->cancelled(c->hooks->user);
+  }
+  if(!summary||cancelled){
+   free(summary);
+   const char *reason=cancelled?"已取消外部策略整理。":"外部策略未返回有效摘要，请检查已启用的版本。";
+   record(c,hash,profile,cut,"",before,before,cancelled?"cancelled":"failed",reason);
+   json_object_put(source);error(err,size,reason);return cancelled?DUNLIN_MODEL_CANCELLED:DUNLIN_MODEL_LIMIT;
+  }
+ }
  if(!summary&&strcmp(c->strategy,"recent")){
   J *prepared=incremental_source(c,source,profile);
   event(c,"context.compacting","正在整理较早的完整回合；原始聊天保留。");dunlin_model_status status=summarize(c,cfg,options,prepared,events,&summary,err,size);json_object_put(prepared);
-  if(status!=DUNLIN_MODEL_OK){record(c,hash,profile,cut,"",before,before,"failed",err&&*err?err:"summary failed");json_object_put(source);return status;}
+  if(status!=DUNLIN_MODEL_OK){record(c,hash,profile,cut,"",before,before,status==DUNLIN_MODEL_CANCELLED?"cancelled":"failed",err&&*err?err:"summary failed");json_object_put(source);return status;}
   char quotes[1024];size_t quote_bytes=source_quotes(c,source,quotes);
   if(quote_bytes){size_t length=strlen(summary);char *with_quotes=realloc(summary,length+quote_bytes+1);if(!with_quotes){free(summary);json_object_put(source);return error(err,size,"无法准备原文保护引用，候选摘要未应用。");}summary=with_quotes;memcpy(summary+length,quotes,quote_bytes+1);}
  }
  if(!summary)summary=strdup("Earlier complete turns were excluded by the selected recent-verbatim strategy. Do not infer missing facts or prior permissions from this omission.");
- J *result=summary?view(history,cut,summary):NULL;size_t after=bytes(result);
+ J *result=summary?view(history,cut,summary,c->pins):NULL;
+ size_t after=bytes(result);
  if(!result||after+schemas>=c->budget||after>=before){if(!reused)record(c,hash,profile,cut,summary?summary:"",before,after,"failed","no useful safe reduction");free(summary);json_object_put(source);json_object_put(result);return error(err,size,"本次整理没有释放足够空间。原始聊天保留，请调整预算或保留回合数。");}
+ if(!reused&&!remember_sources(c,hash,source)){free(summary);json_object_put(source);json_object_put(result);return error(err,size,"无法保存原文来源。");}
  if(!reused&&!record(c,hash,profile,cut,summary,before,after,"committed","")){free(summary);json_object_put(source);json_object_put(result);return error(err,size,"无法保存整理记录，未应用候选摘要。");}
  event(c,"context.compacted",reused?"已复用带来源校验的摘要。":"已整理较早回合，完整原文仍保留在本地。");free(summary);json_object_put(source);*out=result;return DUNLIN_MODEL_OK;
+}
+/* Shorten completed tool results in the request copy only. Current tool chains
+ * remain exact, including retries after interruption. Preserve UTF-8 boundaries. */
+static dunlin_model_status project(void *ctx,const dunlin_model_config *cfg,const dunlin_protocol_options *options,J *history,J *tools,const dunlin_model_events *events,J **out,char *err,size_t size){
+ dc_compactor *c=ctx;
+ if(!c->shorten_tools)return project_text(ctx,cfg,options,history,tools,events,out,err,size);
+ size_t count=json_object_array_length(history),last_user=0;
+ for(size_t i=0;i<count;i++)if(role(json_object_array_get_idx(history,i),"user"))last_user=i;
+ J *view=json_object_new_array();
+ for(size_t i=0;i<count;i++){
+  J *original=json_object_array_get_idx(history,i),*m=json_object_get(original);
+  const char *t=str(m,"content");
+  if(i<last_user&&role(m,"tool")&&t&&strlen(t)>4096){
+   size_t head=1536,tail=strlen(t)-1536;
+   while(head&&((unsigned char)t[head]&0xc0)==0x80)head--;
+   while(((unsigned char)t[tail]&0xc0)==0x80)tail++;
+   char clipped[3300];snprintf(clipped,sizeof clipped,"%.*s\n[Tool output shortened. Complete result retained in local chat.]\n%s",(int)head,t,t+tail);
+   json_object_put(m);m=NULL;
+   if(json_object_deep_copy(original,&m,NULL)!=0||!m){json_object_put(view);return error(err,size,"无法准备工具结果摘录。");}
+   json_object_object_add(m,"content",json_object_new_string(clipped));
+  }
+  json_object_array_add(view,m);
+ }
+ dunlin_model_status status=project_text(ctx,cfg,options,view,tools,events,out,err,size);
+ json_object_put(view);return status;
 }
 dc_compactor *dc_compactor_open(dc_store *s,const char *chat,J *settings,const dc_hooks *hooks,char *err,size_t size){
  if(!json_object_is_type(settings,json_type_object))return NULL;
@@ -120,13 +248,39 @@ dc_compactor *dc_compactor_open(dc_store *s,const char *chat,J *settings,const d
  dc_context_capabilities caps={.model_limit=(uint64_t)json_object_get_int64(get(settings,"modelLimit")),.deployment_limit=(uint64_t)json_object_get_int64(get(settings,"deploymentLimit")),.selected_limit=(uint64_t)json_object_get_int64(get(settings,"selectedLimit")),.client_limit=4194304,.output_limit=(uint64_t)json_object_get_int64(get(settings,"outputLimit")),.requested_output=(uint64_t)json_object_get_int64(get(settings,"requestedOutput")),.overhead_reserve=(uint64_t)json_object_get_int64(get(settings,"reserve"))};dc_context_range range;
  if(dc_context_budget(&caps,&range)!=DC_CONTEXT_VALID||range.selected>4194304){error(err,size,"上下文能力或预算无效；未知能力不能伪造滑条上限。");return NULL;}
  const char *strategy=str(settings,"strategy");unsigned retain=(unsigned)json_object_get_int(get(settings,"retainTurns")),output=(unsigned)json_object_get_int(get(settings,"summaryOutput"));double threshold=json_object_get_double(get(settings,"threshold"));
- if(!strategy||(strcmp(strategy,"semantic")&&strcmp(strategy,"recent"))||retain<1||retain>8||!output||output>range.output||!isfinite(threshold)||threshold<.25||threshold>.95){error(err,size,"无效的压缩策略或保留范围。");return NULL;}
- dc_compactor *c=calloc(1,sizeof *c);if(!c)return NULL;c->chat=strdup(chat);if(!c->chat){free(c);return NULL;}c->store=s;c->budget=range.input_budget;c->retain=retain;c->summary_output=output;c->threshold=threshold;c->automatic=json_object_get_boolean(get(settings,"automatic"));snprintf(c->strategy,sizeof c->strategy,"%s",strategy);c->hooks=hooks;c->service=(dunlin_context_projector_v1){c,project};return c;
+ if(!strategy||(strcmp(strategy,"semantic")&&strcmp(strategy,"recent")&&strcmp(strategy,"external"))||retain<1||retain>8||!output||output>range.output||!isfinite(threshold)||threshold<.25||threshold>.95){error(err,size,"无效的压缩策略或保留范围。");return NULL;}
+ dc_compactor *c=calloc(1,sizeof *c);if(!c)return NULL;c->chat=strdup(chat);if(!c->chat){free(c);return NULL;}c->store=s;c->budget=range.input_budget;c->retain=retain;c->summary_output=output;c->threshold=threshold;c->shorten_tools=json_object_get_boolean(get(settings,"shortenToolOutput"));c->automatic=json_object_get_boolean(get(settings,"automatic"));snprintf(c->strategy,sizeof c->strategy,"%s",strategy);c->hooks=hooks;if(!strcmp(strategy,"external")){
+  J *external=get(settings,"external");const char *keys[]={"source","package","version"};
+  for(size_t i=0;i<3;i++)if(!str(external,keys[i])||!*str(external,keys[i])){dc_compactor_close(c);error(err,size,"外部策略缺少固定版本。");return NULL;}
+  c->external=json_object_get(external);const char *raw=json_object_to_json_string_ext(external,JSON_C_TO_STRING_PLAIN);char hash[65];dc_sha256(raw,strlen(raw),hash);snprintf(c->strategy,sizeof c->strategy,"external:%s",hash);
+  /* Check runtime even when a derived summary is cached. */
+  sqlite3_stmt *q=prep(s,"SELECT 1 FROM extension_bindings b JOIN extension_versions v USING(source,package,version) WHERE b.source=? AND b.package=? AND b.version=? AND b.enabled=1 AND v.quarantined=0 AND json_extract(v.manifest,'$.contextStrategy')='extractive-v1'");
+  if(q){for(int i=0;i<3;i++)bind(q,i+1,str(external,keys[i]));}
+  int found=q&&sqlite3_step(q)==SQLITE_ROW;sqlite3_finalize(q);if(!found){dc_compactor_close(c);error(err,size,"外部策略未启用或版本已变化。");return NULL;}
+ }
+ if(get(settings,"reinclude")){c->pins=selected_quotes(s,chat,get(settings,"reinclude"));if(!c->pins){dc_compactor_close(c);error(err,size,"所选原文来源不再可用。");return NULL;}}
+ c->service=(dunlin_context_projector_v1){c,project};return c;
 }
 const dunlin_context_projector_v1 *dc_compactor_service(dc_compactor *c){return c?&c->service:NULL;}
-void dc_compactor_close(dc_compactor *c){if(c){free(c->chat);free(c);}}
+void dc_compactor_close(dc_compactor *c){if(c){json_object_put(c->external);json_object_put(c->pins);free(c->chat);free(c);}}
 J *dc_compaction_request(dc_store *s,J *request){
  const char *op=str(request,"op");
+ if(op&&!strcmp(op,"context.sources")&&str(request,"chat")){J *rows=source_options(s,str(request,"chat"),json_object_get_int64(get(request,"id")));J *out=json_object_new_object();json_object_object_add(out,"ok",json_object_new_boolean(rows!=NULL));if(rows)json_object_object_add(out,"data",rows);return out;}
+ if(op&&!strcmp(op,"context.record")){
+  J *result=json_object_new_object();
+  sqlite3_stmt *q=prep(s,"SELECT summary FROM compaction_records WHERE chat=? AND id=?");
+  int found=0;
+  if(q&&str(request,"chat")&&json_object_is_type(get(request,"id"),json_type_int)){
+   bind(q,1,str(request,"chat"));sqlite3_bind_int64(q,2,json_object_get_int64(get(request,"id")));
+   if(sqlite3_step(q)==SQLITE_ROW){
+    json_object_object_add(result,"data",json_object_new_string((const char*)sqlite3_column_text(q,0)));
+    found=1;
+   }
+  }
+  sqlite3_finalize(q);json_object_object_add(result,"ok",json_object_new_boolean(found));
+  if(!found)json_object_object_add(result,"error",json_object_new_string("record_unavailable"));
+  return result;
+ }
  if(!op||strcmp(op,"context.records")||!str(request,"chat")){J *r=json_object_new_object();json_object_object_add(r,"ok",json_object_new_boolean(0));json_object_object_add(r,"error",json_object_new_string("unsupported_context_operation"));return r;}
  const char *chat=str(request,"chat");sqlite3_stmt *q=prep(s,"SELECT id,source_hash,strategy,source_count,before_bytes,after_bytes,measure_kind,status,error,created FROM compaction_records WHERE chat=? ORDER BY id DESC LIMIT 100");J *r=json_object_new_object();json_object_object_add(r,"ok",json_object_new_boolean(q!=NULL));if(!q)return r;bind(q,1,chat);J *a=json_object_new_array();int rc;
  while((rc=sqlite3_step(q))==SQLITE_ROW){J *v=json_object_new_object();const char *keys[]={"id","sourceHash","strategy","sourceCount","beforeBytes","afterBytes","measureKind","status","error","created"};for(int i=0;i<10;i++)json_object_object_add(v,keys[i],i==0||(i>=3&&i<=5)||i==9?json_object_new_int64(sqlite3_column_int64(q,i)):json_object_new_string((const char*)sqlite3_column_text(q,i)));json_object_array_add(a,v);}sqlite3_finalize(q);if(rc!=SQLITE_DONE){json_object_put(a);json_object_object_add(r,"ok",json_object_new_boolean(0));}else json_object_object_add(r,"data",a);return r;

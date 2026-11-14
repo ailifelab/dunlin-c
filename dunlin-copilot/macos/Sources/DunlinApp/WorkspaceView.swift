@@ -7,28 +7,43 @@ struct MainView: View {
   @State private var grantsVisible = false
   @State private var recoveryVisible = false
   @State private var fileHistoryVisible = false
+  private var filePageVisible: Bool { fileHistoryVisible || store.selectedReceipt != nil }
+  @State private var waitingChat: Chat?
+  @State private var waitingText = ""
+  @State private var waitingLoaded = false
+  @State private var waitingDirty = false
+  @State private var waitingReadError = ""
+  @State private var waitingSave: DispatchWorkItem?
   var body: some View {
     NavigationSplitView {
       VStack(alignment: .leading, spacing: 0) {
-        Text("Dunlin Copilot").font(.system(size: 20, weight: .semibold)).padding(.horizontal, 24)
+        Text("Dunlin Copilot").font(.title2.weight(.semibold)).padding(.horizontal, 24)
           .padding(.top, 22).padding(.bottom, 18)
-        List(selection: $store.selected) {
+        List(selection: Binding<String?>(get:{waitingChat?.id ?? (store.route == "plugin" ? "plugin:"+store.pluginPageID:store.selected)},set:{value in
+          guard let value else{return}
+          closeFilePages()
+          if store.busy {
+            if let chat = store.chats.first(where: { $0.id == value }) { openWaitingChat(chat) }
+            return
+          }
+          if value.hasPrefix("plugin:") {store.pluginPageID=String(value.dropFirst(7));store.route="plugin"}
+          else if store.chats.contains(where:{$0.id==value}) {store.selected=value;store.route="chat"}
+        })) {
           Section {
             Button {
               store.newChat()
-              store.searchVisible = false
             } label: {
-              Label("新聊天", systemImage: "plus").font(.system(size: 14, weight: .semibold))
-                .imageScale(.large).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+              Label("新聊天", systemImage: "plus").font(.body.weight(.semibold))
+                .imageScale(.medium).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
             }.buttonStyle(.plain).foregroundStyle(.primary).accessibilityIdentifier("chat.new")
             Button {
-              store.searchVisible.toggle()
+              store.route = "search"
             } label: {
-              Label("搜索", systemImage: "magnifyingglass").font(.system(size: 14)).imageScale(.large)
+              Label("搜索", systemImage: "magnifyingglass").font(.body).imageScale(.medium)
                 .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
             }.buttonStyle(.plain).foregroundStyle(.primary).accessibilityIdentifier("chat.search")
             Button(action: store.browseProjects) {
-              Label("项目", systemImage: "folder").font(.system(size: 14)).imageScale(.large)
+              Label("项目", systemImage: "folder").font(.body).imageScale(.medium)
                 .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
             }
             .buttonStyle(.plain).foregroundStyle(.primary).accessibilityIdentifier("project.list")
@@ -39,11 +54,11 @@ struct MainView: View {
               Label("工具记录", systemImage: "wrench.and.screwdriver")
                 .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityIdentifier("tools.sidebar")
-          }
+          }.disabled(store.busy)
           if !store.pluginPages.filter({$0.contribution.kind == "sidebar"}).isEmpty {
             Section("插件") {ForEach(store.pluginPages.filter {$0.contribution.kind == "sidebar"}) {page in
-              Button {store.pluginPageID = page.id;store.route = "plugin"} label: {Label(page.contribution.title ?? page.package,systemImage:"puzzlepiece.extension")}
-            }}
+              Button {store.pluginPageID = page.id;store.route = "plugin"} label: {Label(page.contribution.title ?? page.package,systemImage:"puzzlepiece.extension").frame(maxWidth:.infinity,alignment:.leading).contentShape(Rectangle())}.tag("plugin:"+page.id).accessibilityIdentifier("plugin.page."+page.package)
+            }}.disabled(store.busy)
           }
           if store.chats.contains(where: { $0.pinned && !$0.archived }) {
             Section("置顶") {
@@ -56,7 +71,7 @@ struct MainView: View {
                 ProjectSidebarHeader(project: project,
                   expand: { store.setExpanded(project, !project.expanded) },
                   properties: { store.editProject(project) },
-                  open: { store.openProject(project) })
+                  open: { store.openProject(project) }).disabled(store.busy)
                   .frame(height: 25).contextMenu {
                     Button("项目主页") { store.openProject(project) }
                     Button("项目属性…") { store.editProject(project) }
@@ -66,7 +81,7 @@ struct MainView: View {
                 if project.expanded {
                   Button { store.newChat(workspace: project.path) } label: {
                     Text("新聊天").frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-                  }.padding(.leading, 18).disabled(!project.available)
+                  }.padding(.leading, 18).disabled(store.busy || !project.available)
                     .accessibilityIdentifier("project.new.\(project.id)")
                   ForEach(store.chats.filter { $0.project == project.id && !$0.archived }) { chat in
                     chatRow(chat).padding(.leading, 18)
@@ -78,7 +93,7 @@ struct MainView: View {
                 Text("项目")
                 Spacer()
                 Button(action: store.addProject) { Image(systemName: "plus") }
-                  .help("新建项目").accessibilityIdentifier("project.add")
+                  .help("新建项目").accessibilityIdentifier("project.add").disabled(store.busy)
               }
             }
           }
@@ -95,7 +110,7 @@ struct MainView: View {
           }
         }.listStyle(.sidebar).scrollContentBackground(.hidden).buttonStyle(.plain).font(
           .system(size: 13)
-        ).disabled(store.busy || store.creatingChat || store.switchingModel || store.workspacePlanning || store.workspaceSaving || store.attachmentInteraction)
+        ).disabled((store.busy && store.ordinaryRunningChat == nil) || store.creatingChat || store.switchingModel || store.workspacePlanning || store.workspaceSaving || store.attachmentInteraction)
         Button {
           store.route = "archive"
         } label: {
@@ -110,7 +125,8 @@ struct MainView: View {
         }.buttonStyle(.plain).padding(24).accessibilityIdentifier("settings.open")
       }.background {SidebarBackdrop().ignoresSafeArea()}.navigationSplitViewColumnWidth(min: 220, ideal: 246, max: 300)
     } detail: {
-      HStack(spacing: 0) {
+      ZStack {
+        HStack(spacing: 0) {
         VStack(spacing: 0) {
       if !store.pluginFaultNotice.isEmpty {
         HStack {
@@ -120,7 +136,10 @@ struct MainView: View {
           Button {store.pluginFaultNotice=""} label:{Image(systemName:"xmark")}.accessibilityLabel("关闭插件提示")
         }.padding(12).background(.orange.opacity(0.1))
       }
-          if store.route == "plugin" {
+          if let target = waitingChat, store.ordinaryRunningChat != nil { waitingDraft(target) }
+          else if store.route == "search" {
+            HistorySearchView().id(store.identityEpoch)
+          } else if store.route == "plugin" {
             PluginPageView(pageID:store.pluginPageID)
           } else if store.route == "agents" {
             AgentCollaborationView()
@@ -135,7 +154,6 @@ struct MainView: View {
           } else if store.route == "archive" {
             ArchivedChatsView()
           } else {
-            if store.searchVisible { searchPane }
             if let project = store.currentProject, !project.available {
               HStack {
                 Label(project.availability, systemImage: "exclamationmark.triangle")
@@ -178,7 +196,9 @@ struct MainView: View {
               } else if store.profiles.isEmpty && store.selected == nil {
                 FirstLaunchView()
               } else {
-                if store.messagesLoading && store.messages.isEmpty {
+                if showsCompactionState {
+                  compactionState
+                } else if store.messagesLoading && store.messages.isEmpty {
                   ProgressView("正在读取聊天…").frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if let error = store.messageReadError, store.messages.isEmpty {
                   ContentUnavailableView {
@@ -197,22 +217,31 @@ struct MainView: View {
               }
             }
           }
-          if !store.error.isEmpty { errorBanner }
+          if !store.error.isEmpty && !showsCompactionState && !showsFailedReply { errorBanner }
         }.frame(maxWidth: .infinity,maxHeight:.infinity)
-        if store.inspectorVisible && store.isProject && store.route == "chat"
+        if waitingChat == nil && store.inspectorVisible && store.isProject && store.route == "chat"
           && store.conversationPage == "chat"
         {
           Divider()
           inspector.frame(width: 282)
         }
-      }.background(store.themeConversationBackground)
+        }.opacity(filePageVisible ? 0 : 1).allowsHitTesting(!filePageVisible).accessibilityHidden(filePageVisible)
+        if fileHistoryVisible {
+          FileHistoryListView { fileHistoryVisible = false }
+            .opacity(store.selectedReceipt == nil ? 1 : 0)
+            .allowsHitTesting(store.selectedReceipt == nil).accessibilityHidden(store.selectedReceipt != nil)
+        }
+        if let selection = store.selectedReceipt {
+          FileReceiptView(selection: selection) { store.selectedReceipt = nil }.id(selection.id)
+        }
+      }.background {PluginAppearanceBackdrop()}
         .navigationTitle(
-          store.route == "agents" ? "Agent 协作" : store.route == "tools" ? "工具执行记录" : store.route == "projects"
+          filePageVisible ? (store.selectedReceipt == nil ? "文件变更记录" : "文件变更") : store.route == "search" ? "搜索聊天" : store.route == "agents" ? "Agent 协作" : store.route == "tools" ? "工具执行记录" : store.route == "projects"
             ? "项目"
             : store.route == "archive"
               ? "已归档"
               : ["project", "projectSettings"].contains(store.route)
-                ? (store.currentProject?.name ?? "项目") : (store.selectedChat?.title ?? "新聊天")
+                ? (store.currentProject?.name ?? "项目") : (waitingChat?.title ?? store.selectedChat?.title ?? "新聊天")
         )
         .toolbar {
           ToolbarItemGroup(placement: .primaryAction) {
@@ -221,7 +250,7 @@ struct MainView: View {
                 Button(identity.name + (identity.selected ? " ✓" : "")) {
                   store.switchIdentity(identity)
                 }
-                .disabled(identity.selected || store.busy)
+                .disabled(identity.selected || !store.canRequestIdentitySwitch)
               }
               Divider()
               Button("管理身份…") {
@@ -231,7 +260,7 @@ struct MainView: View {
             } label: {
               Label(store.currentIdentity?.name ?? "本机身份", systemImage: "person.crop.circle")
             }
-            .disabled(store.busy || store.creatingChat || store.switchingModel)
+            .disabled(!store.canRequestIdentitySwitch)
             .labelStyle(.titleAndIcon).fixedSize()
             .accessibilityLabel("当前身份：\(store.currentIdentity?.name ?? "本机身份")")
             .accessibilityIdentifier("identity.menu")
@@ -245,7 +274,7 @@ struct MainView: View {
               .accessibilityIdentifier("agents.toolbar")
           }
           ToolbarSpacer(.fixed, placement: .primaryAction)
-          if store.selected != nil, store.route == "chat" {
+          if store.selected != nil, store.route == "chat", !filePageVisible {
             ToolbarItemGroup(placement: .primaryAction) {
               Button {
                 store.conversationPage = "trajectory"
@@ -271,6 +300,11 @@ struct MainView: View {
                 }
                 Button("归档聊天") { store.updateChat(chat, field: "archived", value: true) }
                 moveMenu(chat)
+                Menu("导出聊天") {
+                  ForEach(TranscriptFormat.allCases, id: \.self) { format in
+                    Button(format.label) { store.exportTranscript(chat, format: format) }
+                  }
+                }.disabled(store.messagesLoading || store.messageReadError != nil)
                 Button("恢复与未决结果…") { recoveryVisible = true }
                 Button("文件变更记录…") { fileHistoryVisible = true }
                 Button("重新关联聊天工作区…", action: store.chooseChatWorkspace)
@@ -280,8 +314,8 @@ struct MainView: View {
             } label: {
               Image(systemName: "ellipsis")
             }
-            .disabled(store.busy || store.selected == nil).accessibilityIdentifier("chat.more")
-            if store.isProject {
+            .disabled(store.busy || store.selected == nil || filePageVisible).accessibilityIdentifier("chat.more")
+            if store.isProject && !filePageVisible {
               Button {
                 store.inspectorVisible.toggle()
               } label: {
@@ -291,30 +325,40 @@ struct MainView: View {
           }
         }
     }
+    .onChange(of: store.busy) { _, active in
+      guard !active, let target = waitingChat else { return }
+      saveWaitingDraft()
+      waitingChat = nil
+      if store.pendingIdentitySwitch == nil { _ = store.openChat(target.id) }
+    }
     .onChange(of: store.draft) { _, _ in store.scheduleDraftSave() }
     .onChange(of: store.profiles) { _, profiles in
       if !profiles.isEmpty, store.selected == nil, store.route == "chat", !store.busy {
         store.reload()
       }
     }
-    .onChange(of: store.selected) { old, new in store.selectChat(from: old, to: new) }
+    .onChange(of: store.selected, initial: true) { old, new in
+      if let old, old != new { closeFilePages() }
+      store.selectChat(from: old, to: new)
+    }
     .onChange(of: store.route) { _, route in
+      closeFilePages()
       if route == "chat", let id = store.selected { store.restoreChatMetadata(id) }
     }
     .onChange(of: store.identityEpoch) { _, _ in
+      waitingChat = nil; waitingSave?.cancel(); waitingDirty = false; waitingText = ""
+      grantResultText = nil
       grantsVisible = false
       recoveryVisible = false
       fileHistoryVisible = false
     }
     .frame(minWidth: 1000, minHeight: 700)
-    .environment(\.chatBodySize, CGFloat(store.generalPreferences.textSize.points + 2))
-    .environment(\.chatHTMLPalette,store.themeHTMLPalette).preferredColorScheme(store.themeScheme).tint(store.themeTint).background(store.themeBackground).foregroundStyle(store.themeText)
+    .environment(\.chatBodySize, CGFloat(store.generalPreferences.textSize.points))
+    .environment(\.chatHTMLPalette,store.themeHTMLPalette).preferredColorScheme(store.themeScheme).tint(store.themeTint).background {PluginAppearanceBackdrop(conversation:false)}.foregroundStyle(store.themeText)
     .sheet(isPresented: $store.mediaVisible) { MediaCallSetup() }
     .sheet(isPresented: $recoveryVisible) { RecoveryView() }
-    .sheet(isPresented: $fileHistoryVisible) { FileHistoryListView() }
-    .sheet(item: $store.selectedReceipt) { FileReceiptView(selection: $0) }
+    .sheet(item: $store.cleanupChat) { chat in ChatCleanupView(chat: chat) }
     .sheet(item: $store.remembering) { selection in MemoryEditor(selection: selection) }
-    .sheet(item: $store.selectedChange) { change in FileDiffView(change: change) }
     .sheet(isPresented: $grantsVisible) { grantsPanel }
     .sheet(
       item: Binding(
@@ -336,7 +380,7 @@ struct MainView: View {
         LazyVStack(alignment: .leading, spacing: 26) {
           ForEach(
             store.messages.filter {
-              ($0.role == "user" || $0.role == "assistant" || $0.role == "tool")
+              ($0.role == "user" || $0.role == "assistant" || $0.role == "tool" || $0.role == "reference")
                 && (!$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                   || (store.showReasoning
                     && ($0.reasoning?.isEmpty == false || $0.reasoningUnavailable == true)))
@@ -345,6 +389,11 @@ struct MainView: View {
             Group {
               if m.media?["kind"] == "start" {
                 Label("通话已开始",systemImage:"phone").font(.caption).foregroundStyle(.secondary).frame(maxWidth:.infinity)
+              } else if m.role == "reference" {
+                VStack(alignment:.leading,spacing:8) {
+                  Label("检查点恢复说明",systemImage:"arrow.uturn.backward").font(.caption).foregroundStyle(.secondary)
+                  Text(m.content).textSelection(.enabled).font(.callout)
+                }.frame(maxWidth:.infinity,alignment:.leading).padding(14).background(store.themeSurface,in:RoundedRectangle(cornerRadius:12))
               } else if m.role == "tool" {
                 ToolChatCard(message: m)
               } else if m.role == "user" {
@@ -374,7 +423,7 @@ struct MainView: View {
                     {
                       PublicReasoningView(
                         text: m.reasoning ?? "", kind: m.reasoningKind ?? "reasoning",
-                        unavailable: m.reasoningUnavailable == true)
+                        unavailable: m.reasoningUnavailable == true, sourceChat: store.selected, sequence: m.sequence)
                     }
                     if !m.content.isEmpty {
                       ChatHTMLContent(source: m.content)
@@ -415,22 +464,24 @@ struct MainView: View {
                 .padding(.leading, store.isProject ? 0 : 42)
             }
           }
-          ForEach(store.changes) { change in
-            Button {
-              store.selectedChange = change
-            } label: {
-              HStack(spacing: 12) {
-                Image(systemName: "doc.text").font(.title3)
-                VStack(alignment: .leading, spacing: 5) {
-                  Text(URL(fileURLWithPath: change.path).lastPathComponent).fontWeight(.medium)
-                  Text("已修改 · 查看差异").font(.caption).foregroundStyle(.secondary)
+          if let chat = store.selected {
+            ForEach(latestFileReceipts) { receipt in
+              Button {
+                store.selectedReceipt = FileReceiptSelection(id: receipt.id, chat: chat)
+              } label: {
+                HStack(spacing: 12) {
+                  Image(systemName: "doc.text").font(.title3)
+                  VStack(alignment: .leading, spacing: 5) {
+                    Text(receipt.path).fontWeight(.medium)
+                    Text(receipt.status).font(.caption).foregroundStyle(receipt.color)
+                  }
+                  Spacer()
+                  Text("查看差异").font(.callout)
                 }
-                Spacer()
-                Image(systemName: "chevron.right").font(.caption)
-              }
-            }.buttonStyle(.plain).padding(16).background(
-              Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12)
-            ).accessibilityIdentifier("file.diff")
+              }.buttonStyle(.plain).padding(16)
+                .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
+                .accessibilityIdentifier("chat.receipt." + receipt.id)
+            }
           }
           if store.busy, !toolEntries.isEmpty {
             HStack(spacing: 10) {
@@ -441,10 +492,16 @@ struct MainView: View {
               Button("查看执行记录") { store.openToolRecords() }.font(.caption)
             }.padding(.vertical, 8)
           }
+          if showsFailedReply { failedReplyCard }
           Color.clear.frame(height: 1).id("end")
         }.frame(maxWidth: 800).padding(.horizontal, 36)
           .frame(maxWidth: .infinity).padding(.vertical, 32)
-      }.onChange(of: store.live) { _, _ in proxy.scrollTo("end", anchor: .bottom) }
+      }.onAppear {
+        if let sequence = store.jumpToMessage {
+          proxy.scrollTo("message:\(sequence)", anchor: .center)
+        }
+      }.onChange(of:showsFailedReply){_,visible in if visible {proxy.scrollTo("end",anchor:.bottom)}}
+        .onChange(of: store.live) { _, _ in proxy.scrollTo("end", anchor: .bottom) }
         .onChange(of: store.liveReasoning) { _, _ in proxy.scrollTo("end", anchor: .bottom) }
         .onChange(
           of: store.messages.map(\.id)
@@ -505,10 +562,11 @@ struct MainView: View {
         } label: {
           Text("授权记录")
         }.buttonStyle(.plain)
+        if let chat=store.selected { ChatCompanions(chat:chat) }
         Spacer()
         Button { store.mediaVisible = true } label: { Label("通话",systemImage:"phone") }.disabled(store.selected == nil || (store.busy && store.mediaCallID == nil)).accessibilityIdentifier("media.open")
         Text(store.busy ? "正在处理…" : "").foregroundStyle(.secondary)
-      }.font(.system(size: 12))
+      }.font(.callout)
       if store.attachmentBusy { ProgressView("正在读取附件…").controlSize(.small).frame(maxWidth: .infinity, alignment: .leading) }
       if let attachment = store.pendingAttachment, let chat = store.selected {
         AttachmentCard(attachment: attachment, chat: chat, pending: true)
@@ -523,7 +581,7 @@ struct MainView: View {
       Divider()
       ComposerTextView(
         text: $store.draft, sendKey: store.generalPreferences.sendKey,
-        textSize: store.generalPreferences.textSize.points - 1,
+        textSize: store.generalPreferences.textSize.points,
         enabled: store.selected != nil && !store.creatingChat,
         canSubmit: store.canSendMessage, submit: store.send, pastePNG: store.pasteAttachment,
         unsupportedImage: { store.attachmentError = "此版本支持粘贴 PNG。请先保存为 PNG，或使用截图按钮。" }
@@ -556,7 +614,7 @@ struct MainView: View {
           }
         }
         Spacer()
-        Text(store.generalPreferences.sendKey.hint).font(.system(size: 11)).foregroundStyle(
+        Text(store.generalPreferences.sendKey.hint).font(.caption).foregroundStyle(
           .secondary)
         if store.busy {
           Button(store.stopping ? "正在停止…" : "停止", action: store.stop).disabled(store.stopping)
@@ -573,27 +631,76 @@ struct MainView: View {
       .frame(maxWidth: 800).padding(.horizontal, 32).frame(maxWidth: .infinity)
       .padding(.bottom, 24).padding(.top, 8)
   }
-  private var searchPane: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      HStack {
-        TextField("用一句话查找旧聊天", text: $store.search).onSubmit(store.find).textFieldStyle(
-          .roundedBorder
-        ).accessibilityIdentifier("search.input")
-        Button("搜索", action: store.find)
-      }
-      if !store.search.isEmpty {
-        ScrollView {
-          ForEach(store.hits) { hit in
-            Button {
-              store.openChat(hit.chat, sequence: hit.sequence)
-            } label: {
-              Text(hit.text).lineLimit(3).frame(maxWidth: .infinity, alignment: .leading).padding(
-                10)
-            }.buttonStyle(.plain).disabled(store.busy || store.creatingChat || store.switchingModel)
+  private var showsCompactionState: Bool {
+    guard store.route=="chat",store.conversationPage=="chat",let chat=store.selected else{return false}
+    return store.compactingChat==chat || (store.compactionIssueChat==chat && !store.error.isEmpty)
+  }
+
+  @ViewBuilder private var compactionState: some View {
+    let working=store.compactingChat != nil
+    VStack(alignment:.leading,spacing:24) {
+      Spacer(minLength:12)
+      Text(working ? "正在整理较早的聊天…" : store.compactionCancelled ? "已取消上下文整理" : "上下文尚未整理完成")
+        .font(.title.weight(.semibold))
+      if working {
+        Text("保留近期轮次，把较早内容整理成带来源的摘要。").foregroundStyle(.secondary)
+        ProgressView().progressViewStyle(.linear)
+        HStack {Text(store.stopping ? "正在取消整理…" : "正在等待整理结果").foregroundStyle(.secondary)
+          Spacer()
+          Button("取消整理",action:store.cancelCompaction).disabled(store.stopping).accessibilityIdentifier("context.cancel")
+        }
+        GroupBox {VStack(alignment:.leading,spacing:8){
+          Text("完整聊天保存在本机").font(.headline)
+          Text("摘要通过来源与预算检查后才会用于请求。").foregroundStyle(.secondary)
+        }.frame(maxWidth:.infinity,alignment:.leading).padding(10)}
+      } else {
+        Text(store.error).textSelection(.enabled).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 9) {
+          Text("原始聊天已保留").font(.headline)
+          Text(store.compactionCancelled ? "已发起的摘要请求可能产生费用，可在运行轨迹中查看。" : "这次未采用不完整的摘要，历史工具不会重新执行。")
+          if !store.compactionCancelled { Text("可以重试整理、选择其他模型或调整保留的轮次。") }
+        }
+        .font(.callout).padding(18).frame(maxWidth: .infinity, alignment: .leading)
+        .background(store.compactionCancelled ? Color.secondary.opacity(0.07) : Color.orange.opacity(0.11),
+                    in: RoundedRectangle(cornerRadius: 10))
+        HStack {
+          if store.compactionCancelled {
+            Button("返回聊天"){store.error="";store.compactionIssueChat=nil}
+              .accessibilityIdentifier("context.return")
+          } else {
+            if store.failedTurn?.chat==store.selected {
+              Button("重试整理",action:store.retryFailedTurn).buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("context.retry")
+            }
+            Menu("换模型…"){ForEach(store.profiles){profile in
+              Button(profile.name){store.previewModelSwitch(to:profile.id)}.disabled(profile.id==store.profileID)
+            }}.fixedSize().disabled(store.selectedChat?.active == true)
           }
-        }.frame(maxHeight: 170)
+          Button(store.compactionCancelled ? "更改整理策略…" : "选择保留的内容…"){
+            store.settingsSection="上下文压缩";openSettings()
+          }
+          if !store.compactionCancelled {Button("返回聊天"){store.compactionIssueChat=nil;store.error=""}}
+        }
       }
-    }.padding(20)
+      Spacer(minLength:12)
+    }.padding(.horizontal,34).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.leading)
+  }
+
+  private var showsFailedReply:Bool {
+    store.failedTurn?.chat == store.selected && store.failedTurn != nil &&
+      store.route == "chat" && store.conversationPage == "chat" && !store.error.isEmpty && !showsCompactionState
+  }
+  private var failedReplyCard:some View {
+    VStack(alignment:.leading,spacing:12) {
+      Label("模型请求未完成",systemImage:"exclamationmark.circle").font(.headline)
+      Text(store.error).font(.callout).textSelection(.enabled)
+      Text("已提交的消息保留在本机，可以检查服务商连接后重试。").foregroundStyle(.secondary)
+      HStack {
+        Button("重试",action:store.retryFailedTurn).accessibilityIdentifier("chat.failure.retry")
+        Button("检查服务商"){store.settingsSection="服务商";openSettings()}
+      }.disabled(store.busy)
+    }.padding(20).frame(maxWidth:.infinity,alignment:.leading)
+      .background(Color.red.opacity(0.07),in:RoundedRectangle(cornerRadius:12))
   }
   private var errorBanner: some View {
     HStack(alignment: .top) {
@@ -601,6 +708,10 @@ struct MainView: View {
       Text(store.error).textSelection(.enabled).font(.callout)
       Spacer()
       if !store.busy {
+        if let failedTurn=store.failedTurn,failedTurn.chat==store.selected {
+          Button("重试",action:store.retryFailedTurn)
+          Button("检查服务商"){store.settingsSection="服务商";openSettings()}
+        }
         if store.selectedChat?.active == true { Button("继续回合", action: store.resume) }
         Button {
           store.error = ""
@@ -623,7 +734,7 @@ struct MainView: View {
           ForEach(latestFileReceipts) { receipt in
             Button {
               if let chat = store.selected {
-                store.selectedReceipt = FileReceiptSelection(id: receipt.id, chat: chat)
+                store.selectedReceipt = FileReceiptSelection(id: receipt.id, chat: chat, origin: .inspector)
               }
             } label: {
               HStack(alignment: .top, spacing: 10) {
@@ -647,16 +758,6 @@ struct MainView: View {
           if !store.receiptError.isEmpty {
             Text(store.receiptError).font(.caption).foregroundStyle(.orange)
           }
-          if !store.changes.isEmpty {
-            DisclosureGroup("旧版差异快照") {
-              Text("旧版界面快照未经持久回执验证，只读保留，不能直接回退。").font(.caption).foregroundStyle(.secondary)
-              ForEach(store.changes) { change in
-                Button(URL(fileURLWithPath: change.path).lastPathComponent) {
-                  store.selectedChange = change
-                }.buttonStyle(.plain)
-              }
-            }
-          }
         }.frame(maxWidth: .infinity, alignment: .leading)
       }.frame(maxHeight: 280)
       Text("命令产生的额外文件变化需另行核对。").font(.caption).foregroundStyle(.secondary)
@@ -679,6 +780,7 @@ struct MainView: View {
     var seen = Set<String>()
     return Array(store.receiptRows.filter { seen.insert($0.path).inserted }.prefix(8))
   }
+  @State private var grantResultText: ToolGrantReceipt?
   private var grantsPanel: some View {
     VStack(alignment: .leading, spacing: 20) {
       HStack {
@@ -699,7 +801,7 @@ struct MainView: View {
             GroupBox {
               VStack(alignment:.leading,spacing:8) {
                 HStack {Text(g.tool).fontWeight(.semibold);Spacer();Text(grantStatus(g)).foregroundStyle(.secondary)}
-                Text(g.arguments).font(.system(size:12,design:.monospaced)).textSelection(.enabled)
+                Text(g.arguments).font(.system(.callout, design: .monospaced)).textSelection(.enabled)
                 HStack {
                   Text(g.date,format:.dateTime)
                   Spacer()
@@ -711,7 +813,7 @@ struct MainView: View {
                 HStack {
                   Text("确认等待 \(String(format:"%.1f",Double(g.waitMs)/1000)) 秒").font(.caption).foregroundStyle(.secondary)
                   Spacer()
-                  Button(g.status == "issued_once" ? "撤销当前调用":"核对撤销状态") {store.revokeGrant(g)}.disabled(g.recordID == nil)
+                  Button(g.status == "issued_once" ? "撤销当前调用":"核对撤销状态") {store.revokeGrant(g) { grantResultText = $0 }}.disabled(g.recordID == nil)
                 }
               }.padding(8)
             }
@@ -724,11 +826,87 @@ struct MainView: View {
 
     }.padding(24).frame(width: 760, height: 560).onAppear {
       store.reloadGrants(chat: store.selected ?? "")
-    }.onChange(of: store.busy) { _, _ in store.reloadGrants(chat: store.selected ?? "") }
+    }.grantResult($grantResultText).onChange(of: store.busy) { _, _ in store.reloadGrants(chat: store.selected ?? "") }
   }
+  private func openWaitingChat(_ chat: Chat) {
+    guard let running = store.ordinaryRunningChat, waitingChat?.id != chat.id else { return }
+    saveWaitingDraft()
+    waitingChat = chat.id == running ? nil : chat
+    waitingReadError = ""
+    waitingDirty = false
+    guard waitingChat != nil else { return }
+    waitingText = store.drafts[chat.id] ?? ""
+    waitingLoaded = store.drafts[chat.id] != nil
+    if !waitingLoaded {
+      store.readLocalView(["op":"chats.metadata","id":chat.id], as: ChatMetadata.self) { result in
+        guard waitingChat?.id == chat.id else { return }
+        if let metadata = result.data {
+          waitingText = metadata.draft
+          waitingLoaded = true
+        } else { waitingReadError = "草稿暂不可读，返回后可重试。" }
+      }
+    }
+  }
+
+  private func saveWaitingDraft() {
+    waitingSave?.cancel()
+    guard let chat = waitingChat, waitingLoaded, waitingDirty else { return }
+    waitingDirty = false
+    store.drafts[chat.id] = waitingText
+    store.workspaceRequest(["op":"chats.update", "id":chat.id, "field":"draft", "value":waitingText],
+                           as: NoData.self) { result in
+      if !result.ok { store.error = store.workspaceError(result.error) }
+    }
+  }
+
+  private func waitingDraft(_ chat: Chat) -> some View {
+    VStack(alignment: .leading, spacing: 16) {
+      Spacer()
+      Text("等待当前回复完成").font(.title.weight(.semibold))
+      let title = store.chats.first { $0.id == store.ordinaryRunningChat }?.title ?? "当前聊天"
+      Text("「" + title + "」正在生成回复。你可以继续编辑这段聊天的草稿。")
+        .foregroundStyle(.secondary)
+      Button("返回正在运行的聊天") {
+        saveWaitingDraft()
+        waitingChat = nil
+      }.accessibilityIdentifier("chat.returnToRunning")
+      if store.stopping {
+        VStack(alignment: .leading, spacing: 7) {
+          Text("正在停止…").font(.headline)
+          Text("正在等待当前请求结束。").foregroundStyle(.secondary)
+        }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
+          .background(.quaternary, in: RoundedRectangle(cornerRadius: 10))
+      }
+      Spacer()
+      if !waitingReadError.isEmpty { Text(waitingReadError).foregroundStyle(.orange) }
+      Text("回复完成后，请手动发送这段草稿。").font(.caption).foregroundStyle(.secondary)
+      VStack(alignment: .trailing, spacing: 8) {
+        TextEditor(text: Binding(get: { waitingText }, set: { value in
+          waitingText = value
+          waitingDirty = true
+          waitingSave?.cancel()
+          let save = DispatchWorkItem { saveWaitingDraft() }
+          waitingSave = save
+          DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: save)
+        }))
+        .disabled(!waitingLoaded).scrollContentBackground(.hidden)
+        .frame(minHeight: 60, maxHeight: 100).accessibilityIdentifier("chat.waitingDraft")
+        Button("发送") {}.disabled(true)
+      }.padding(12).background(store.themeSurface, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(.quaternary))
+        .shadow(color: .black.opacity(0.07), radius: 6, y: 3)
+    }.padding(32).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+  }
+
+  private func closeFilePages() {
+    fileHistoryVisible = false
+    store.selectedReceipt = nil
+  }
+
   private func chatRow(_ chat: Chat) -> some View {
     Button {
-      store.openChat(chat.id)
+      closeFilePages()
+      if store.busy { openWaitingChat(chat) } else { store.openChat(chat.id) }
     } label: {
       HStack {
         Text(chat.title).lineLimit(1)
@@ -758,34 +936,205 @@ struct MainView: View {
     }
   }
 }
-struct FileDiffView: View {
-  let change: FileChange
-  @Environment(\.dismiss) private var dismiss
-  var body: some View {
-    VStack(alignment: .leading, spacing: 20) {
-      HStack {
-        Label(URL(fileURLWithPath: change.path).lastPathComponent, systemImage: "doc.text").font(
-          .title3.weight(.semibold))
-        Spacer()
-        Text("旧版界面快照").foregroundStyle(.secondary)
-        Button("完成") { dismiss() }
-      }
-      Text("这份旧版快照不证明文件已成功写入或保持不变，不能用于直接回退。").font(.caption).foregroundStyle(.secondary)
-      HStack(alignment: .top, spacing: 0) {
-        column("修改前", change.existed ? change.before : "（新文件）", .red)
-        Divider()
-        column("修改后", change.after, .green)
-      }
-    }.padding(24).frame(width: 920, height: 600)
+private struct HistorySearchView: View {
+  @EnvironmentObject var store: WorkspaceStore
+  @Environment(\.openSettings) private var openSettings
+  @FocusState private var focused: Bool
+  @State private var preview: SearchHit?
+  @State private var excerpt: [SourceLine] = []
+  @State private var previewError = ""
+  @State private var loadingSource = false
+  @State private var sourceRequest = UUID()
+
+  private struct SourceLine: Decodable {
+    let sequence: Int
+    let role: String
+    let text: String
+    let time: Int64?
   }
-  private func column(_ title: String, _ text: String, _ color: Color) -> some View {
-    VStack(alignment: .leading, spacing: 12) {
-      Text(title).font(.headline)
-      ScrollView([.horizontal, .vertical]) {
-        Text(text).font(.system(size: 13, design: .monospaced)).textSelection(.enabled).frame(
-          maxWidth: .infinity, alignment: .topLeading
-        ).padding(14)
+
+  var body: some View {
+    Group {
+      if let hit = preview { sourcePage(hit) } else { results }
+    }
+    .padding(.horizontal, 32).padding(.vertical, 22)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .background(store.themeBackground)
+  }
+
+  private func scope(_ hit: SearchHit) -> String {
+    let project = store.chats.first { $0.id == hit.chat }?.project
+    return store.projects.first { $0.id == project }?.name ?? "普通聊天"
+  }
+
+  private func speaker(_ role: String) -> String {
+    switch role {
+    case "user": return store.currentIdentity?.name ?? "用户"
+    case "assistant": return "助手"
+    case "tool": return "工具"
+    default: return role
+    }
+  }
+
+  private func timestamp(_ time: Int64?) -> String? {
+    guard let time else { return nil }
+    return Date(timeIntervalSince1970: Double(time) / 1000).formatted(date: .abbreviated, time: .shortened)
+  }
+
+  private func readSource(_ hit: SearchHit, open: Bool = false) {
+    let request = UUID()
+    sourceRequest = request
+    loadingSource = true
+    previewError = ""
+    var args: [String: Any] = ["op": "index.source", "chat": hit.chat, "sequence": hit.sequence,
+                               "text": hit.text, "role": hit.role]
+    if let time = hit.time { args["time"] = time }
+    store.workspaceRequest(args, as: [SourceLine].self) { reply in
+      guard preview?.id == hit.id, sourceRequest == request else { return }
+      loadingSource = false
+      guard reply.ok, let lines = reply.data, lines.contains(where: { $0.sequence == hit.sequence }) else {
+        excerpt = []
+        previewError = reply.error == "source_changed" ? "原文已变化或已删除，请返回并重新搜索。" : "无法读取聊天原文，请返回重试。"
+        return
       }
-    }.padding(12).frame(maxWidth: .infinity, maxHeight: .infinity).background(color.opacity(0.045))
+      excerpt = lines
+      if open { _ = store.openChat(hit.chat, sequence: hit.sequence) }
+    }
+  }
+
+  private func sourcePage(_ hit: SearchHit) -> some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: 18) {
+        Button {
+          sourceRequest = UUID()
+          preview = nil
+        } label: { Label("返回搜索结果", systemImage: "chevron.left") }
+          .buttonStyle(.borderless).accessibilityIdentifier("search.return")
+        Text("命中的原话").font(.title2.bold())
+        Text([store.chats.first { $0.id == hit.chat }?.title, scope(hit), store.currentIdentity?.name]
+          .compactMap { $0 }.joined(separator: " · ")).foregroundStyle(.secondary)
+        if !previewError.isEmpty {
+          Label(previewError, systemImage: "exclamationmark.triangle").foregroundStyle(.secondary)
+        } else if loadingSource && excerpt.isEmpty {
+          ProgressView("正在读取原文…")
+        }
+        ForEach(excerpt, id: \.sequence) { line in
+          VStack(alignment: .leading, spacing: 14) {
+            Text([timestamp(line.time), speaker(line.role), line.sequence == hit.sequence ? "命中原文" : (line.sequence > hit.sequence ? "后续消息" : "前文")]
+              .compactMap { $0 }.joined(separator: " · "))
+              .font(.subheadline.weight(.semibold)).foregroundStyle(line.sequence == hit.sequence ? Color.accentColor : .secondary)
+            Text(line.text).font(.body).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+          }.padding(20).frame(maxWidth: .infinity, minHeight: 100, alignment: .leading)
+            .background(store.themeSurface, in: RoundedRectangle(cornerRadius: 12))
+        }
+        if !excerpt.isEmpty {
+          Text("这里按原来的顺序展示命中消息和相邻原文。更早或更晚的补充可以在聊天中查看。")
+            .padding(18).frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+        }
+        Button("在聊天中打开") { readSource(hit, open: true) }.buttonStyle(.borderedProminent)
+          .controlSize(.large).disabled(excerpt.isEmpty || loadingSource || store.busy || store.workspaceTransitioning)
+          .accessibilityIdentifier("search.open-chat")
+      }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+
+  private var results: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      HStack(spacing: 12) {
+        Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+        TextField("用一句话查找旧聊天", text: $store.search)
+          .textFieldStyle(.plain).onSubmit(store.find).focused($focused)
+          .accessibilityIdentifier("search.input")
+        Button("搜索", action: store.find).buttonStyle(.borderedProminent).controlSize(.large)
+          .disabled(store.busy || store.search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+          .accessibilityIdentifier("search.submit")
+      }.padding(.horizontal, 14).frame(minHeight: 46)
+        .background(store.themeSurface, in: RoundedRectangle(cornerRadius: 10))
+      HStack(spacing: 12) {
+        Label(store.currentIdentity?.name ?? "当前身份", systemImage: "person.crop.circle")
+        Picker("项目", selection: $store.searchProject) {
+          Text("所有项目").tag("")
+          ForEach(store.projects) { Text($0.name).tag($0.id) }
+        }.labelsHidden().fixedSize().accessibilityIdentifier("search.project")
+        Picker("时间", selection: $store.searchDays) {
+          Text("不限时间").tag(0); Text("最近七天").tag(7); Text("最近三十天").tag(30)
+        }.labelsHidden().fixedSize().accessibilityIdentifier("search.time")
+        Spacer()
+        Button("检索设置…") { store.settingsSection = "聊天检索"; openSettings() }.buttonStyle(.borderless)
+      }
+      if let pending = store.indexStatus?.pending, pending > 0 {
+        Text("\(pending) 段新内容正在整理，当前结果可能不完整。").padding(14)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 9))
+      }
+      HStack {
+        Text("按词语与短语匹配").font(.headline)
+        Spacer()
+        Text("本地语义检索未开启").font(.caption).foregroundStyle(.secondary)
+      }
+      if let error = store.searchFailure {
+        Label(error, systemImage: "exclamationmark.triangle")
+      } else if store.searchedQuery != nil && store.hits.isEmpty {
+        VStack(spacing: 14) {
+          Label("没有找到相关聊天", systemImage: "magnifyingglass").font(.headline)
+          Text("试试其他关键词，或移除项目和时间筛选。").foregroundStyle(.secondary)
+          if !store.searchProject.isEmpty || store.searchDays != 0 {
+            Button("清除筛选") { store.searchProject = ""; store.searchDays = 0 }
+              .accessibilityIdentifier("search.clear-filters")
+          } else {
+            Button("修改关键词") { focused = true }
+          }
+        }.padding(24).frame(maxWidth: .infinity, minHeight: 170)
+          .background(store.themeSurface, in: RoundedRectangle(cornerRadius: 11))
+        if let project = store.projects.first(where: { $0.id == store.searchProject }),
+           !store.chats.contains(where: { $0.project == project.id && !$0.archived }) {
+          VStack(alignment: .leading, spacing: 12) {
+            Text(project.name).font(.headline)
+            Text("这个项目还没有聊天。从一个问题开始，项目上下文会跟随新的对话。").foregroundStyle(.secondary)
+            Button("开始聊天") { store.newChat(workspace: project.path) }.disabled(!project.available)
+          }.padding(24).frame(maxWidth: .infinity, alignment: .leading)
+            .background(store.themeSurface, in: RoundedRectangle(cornerRadius: 11))
+        }
+      } else {
+        ScrollView {
+          LazyVStack(alignment: .leading, spacing: 14) {
+            ForEach(store.hits) { hit in
+              VStack(alignment: .leading, spacing: 8) {
+                Text(store.chats.first { $0.id == hit.chat }?.title ?? "聊天记录").font(.headline)
+                Text([scope(hit), speaker(hit.role), timestamp(hit.time)].compactMap { $0 }.joined(separator: " · "))
+                  .font(.subheadline).foregroundStyle(.secondary)
+                Text(hit.text).lineLimit(4).textSelection(.enabled)
+                HStack {
+                  if !hit.matchedTerms.isEmpty {
+                    Text("匹配：" + hit.matchedTerms.joined(separator: "、"))
+                      .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                  }
+                  Spacer()
+                  Button("查看原文…") {
+                    preview = hit
+                    excerpt = []
+                    readSource(hit)
+                  }.disabled(store.busy || store.creatingChat || store.switchingModel)
+                    .accessibilityIdentifier("search.source.\(hit.id)")
+                }
+              }.padding(18).frame(maxWidth: .infinity, alignment: .leading)
+                .background(store.themeSurface, in: RoundedRectangle(cornerRadius: 11))
+            }
+          }
+        }
+      }
+      Spacer(minLength: 0)
+      Text("没有找到时，可以换一种说法或调整范围。").font(.caption).foregroundStyle(.secondary)
+    }.onAppear { focused = true; store.reloadIndexStatus() }
+      .onChange(of: store.searchProject) { _, _ in refreshFilter() }
+      .onChange(of: store.searchDays) { _, _ in refreshFilter() }
+  }
+
+  private func refreshFilter() {
+    store.hits = []
+    store.searchedQuery = nil
+    store.searchFailure = nil
+    if !store.search.isEmpty { store.find() }
   }
 }

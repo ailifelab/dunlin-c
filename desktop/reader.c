@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include "internal.h"
+#include "model_helpers.h"
 #include "media_records.h"
 #include "agents.h"
 #include "trajectory.h"
@@ -27,8 +28,10 @@ char *dc_read_view(const char *directory,const char *raw){
  if(op&&(!strcmp(op,"trace.status")||!strcmp(op,"trace.segments")||!strcmp(op,"trace.events")||!strcmp(op,"trace.export"))){s.trajectory=dl_trajectory_open_reader(parent);result=dc_trajectory_request(&s,request);}
  else if(op&&(!strcmp(op,"receipts.list")||!strcmp(op,"receipts.detail")||!strcmp(op,"receipts.status")||!strcmp(op,"receipts.pending")))result=dc_file_history_request(&s,request);
  else if(op&&(!strcmp(op,"media.recording")||!strcmp(op,"media.list")||!strcmp(op,"media.items")||!strcmp(op,"media.frames")||!strcmp(op,"media.frame.read")))result=dc_media_request(&s,request);
+ else if(op&&!strcmp(op,"chats.metadata"))result=dc_chat_metadata(&s,request);
  else if(op&&!strcmp(op,"grants.list"))result=dc_grants_request(&s,request);
- else if(op&&(!strcmp(op,"agents.list")||!strcmp(op,"agents.next")||!strcmp(op,"agents.pending")||!strcmp(op,"agents.messages")||!strcmp(op,"agents.members")))result=dc_agents_request(&s,request);
+ else if(op&&(!strcmp(op,"agents.list")||!strcmp(op,"agents.next")||!strcmp(op,"agents.pending")||!strcmp(op,"agents.nativePending")||!strcmp(op,"agents.messages")||!strcmp(op,"agents.members")))result=dc_agents_request(&s,request);
+ else if(op&&!strcmp(op,"helpers.pending"))result=dc_helpers_pending(&s);
  else if(op&&(!strcmp(op,"config.list")||!strcmp(op,"config.model")))result=dc_config_request(&s,request);
  else if(op&&(!strcmp(op,"tools.list")||!strcmp(op,"tools.detail")||!strcmp(op,"tools.locate")))result=dc_tool_records_request(&s,request);
  else if(op&&!strcmp(op,"chats.model.preview"))result=dc_model_switch_request(&s,request);

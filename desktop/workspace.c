@@ -1,6 +1,7 @@
 #define _XOPEN_SOURCE 700
 #include "recovery.h"
 #include "config_registry.h"
+#include "model_helpers.h"
 #include "tool_records.h"
 #include "trajectory.h"
 #include "file_history.h"
@@ -195,10 +196,46 @@ static J *scoped_project(dc_store *s,J *r,const char **error){
  if(!p||!str(p,"id")||strcmp(str(p,"id"),id)){json_object_put(p);*error=has_chat?"chat_project_mismatch":"project_not_found";return NULL;}
  return p;
 }
+J *dc_chat_metadata(dc_store *s,J *r){
+ const char *id=str(r,"id");if(!ident(id)||!exists(s,"chats",id))return fail("chat_not_found");sqlite3_stmt *q=prep(s,"SELECT COALESCE(m.draft,''),COALESCE(" DC_CHAT_MODEL_ID ",'') FROM chats c LEFT JOIN chat_properties m ON m.chat=c.id " DC_ACTIVE_RUN_JOIN " WHERE c.id=?");if(!q)return fail("storage_error");bind(q,1,id);int row=sqlite3_step(q);if(row!=SQLITE_ROW){sqlite3_finalize(q);return fail("storage_error");}J *o=json_object_new_object();json_object_object_add(o,"draft",json_object_new_string((const char*)sqlite3_column_text(q,0)));json_object_object_add(o,"model",json_object_new_string((const char*)sqlite3_column_text(q,1)));sqlite3_finalize(q);return reply(1,NULL,o);
+}
+/* Count exclusive payload bytes. SQLite pages, the search index and other shared
+   stores cannot promise a corresponding reduction in the file's physical size. */
+static J *chat_cleanup_preview(dc_store *s,const char *id){
+ if(!ident(id))return fail("invalid_chat_id");
+ sqlite3_stmt *q=prep(s,
+  "SELECT length(CAST(COALESCE(c.state,'') AS BLOB))+length(CAST(p.draft AS BLOB)),"
+  "(SELECT COALESCE(sum(b.bytes),0) FROM file_history_blobs b WHERE b.hash IN "
+  "(SELECT before_hash FROM file_operations WHERE chat=?1 UNION SELECT after_hash FROM file_operations WHERE chat=?1) "
+  "AND NOT EXISTS(SELECT 1 FROM file_operations o WHERE o.chat<>?1 AND (o.before_hash=b.hash OR o.after_hash=b.hash)) "
+  "AND NOT EXISTS(SELECT 1 FROM file_stage_cleanup st WHERE st.after_hash=b.hash)),"
+  "(SELECT count(*) FROM graph_nodes WHERE kind='memory' AND source_chat=?1 AND independent=0 AND state!='deleted'),"
+  "(SELECT count(*) FROM graph_nodes WHERE kind='memory' AND source_chat=?1 AND independent=0 AND scope!='chat' AND state!='deleted'),"
+  "CASE WHEN json_valid(c.state) THEN json_array_length(c.state,'$.messages') ELSE 0 END "
+  "FROM chats c JOIN chat_properties p ON p.chat=c.id WHERE c.id=?1");
+ if(q)bind(q,1,id);
+ if(!q||sqlite3_step(q)!=SQLITE_ROW){sqlite3_finalize(q);return fail("chat_cleanup_preview_unavailable");}
+ int64_t bytes=sqlite3_column_int64(q,0)+sqlite3_column_int64(q,1);
+ J *data=json_object_new_object();
+ json_object_object_add(data,"memories",json_object_new_int64(sqlite3_column_int64(q,2)));
+ json_object_object_add(data,"preservable",json_object_new_int64(sqlite3_column_int64(q,3)));
+ json_object_object_add(data,"messages",json_object_new_int64(sqlite3_column_int64(q,4)));
+ sqlite3_finalize(q);
+ if(s->attachments){
+  q=prep(s,"WITH refs AS (SELECT sha,scope,owner FROM attachment_drafts UNION ALL SELECT sha,scope,owner FROM attachment_messages) "
+    "SELECT COALESCE(sum(length(data)),0) FROM attachment_resources r WHERE sha IN(SELECT sha FROM refs WHERE scope=?2 AND owner=?1) "
+    "AND NOT EXISTS(SELECT 1 FROM refs WHERE refs.sha=r.sha AND (refs.scope!=?2 OR refs.owner!=?1))");
+  if(q){bind(q,1,id);sqlite3_bind_int(q,2,DL_ATTACHMENT_CHAT);}
+  if(!q||sqlite3_step(q)!=SQLITE_ROW){sqlite3_finalize(q);json_object_put(data);return fail("attachment_storage_error");}
+  bytes+=sqlite3_column_int64(q,0);sqlite3_finalize(q);
+ }
+ json_object_object_add(data,"exclusiveBytes",json_object_new_int64(bytes));return reply(1,NULL,data);
+}
 static J *request(dc_store *s,J *r){
  const char *op=str(r,"op");if(!op)return fail("invalid_request");
  if(!strncmp(op,"agents.",7))return dc_agents_request(s,r);
  if(!strncmp(op,"recovery.",9))return dc_recovery_request(s,r);
+ if(!strcmp(op,"helpers.pending"))return dc_helpers_pending(s);
  if(!strncmp(op,"config.",7))return dc_config_request(s,r);
  if(!strncmp(op,"tools.",6))return dc_tool_records_request(s,r);
  if(!strncmp(op,"trace.",6))return dc_trajectory_request(s,r);
@@ -229,10 +266,9 @@ static J *request(dc_store *s,J *r){
  if(!strncmp(op,"media.",6))return dc_media_request(s,r);
  if(!strncmp(op,"attachments.",12))return dc_attachments_request(s,r);
  if(!strncmp(op,"chats.workspace.",16))return dc_chat_workspace_request(s,r);
+ if(!strcmp(op,"chats.cleanup.preview"))return chat_cleanup_preview(s,str(r,"id"));
  if(!strcmp(op,"chats.update"))return chat_update(s,r);
- if(!strcmp(op,"chats.metadata")){
-  const char *id=str(r,"id");if(!ident(id)||!exists(s,"chats",id))return fail("chat_not_found");sqlite3_stmt *q=prep(s,"SELECT COALESCE(m.draft,''),COALESCE(" DC_CHAT_MODEL_ID ",'') FROM chats c LEFT JOIN chat_properties m ON m.chat=c.id " DC_ACTIVE_RUN_JOIN " WHERE c.id=?");if(!q)return fail("storage_error");bind(q,1,id);int row=sqlite3_step(q);if(row!=SQLITE_ROW){sqlite3_finalize(q);return fail("storage_error");}J *o=json_object_new_object();json_object_object_add(o,"draft",json_object_new_string((const char*)sqlite3_column_text(q,0)));json_object_object_add(o,"model",json_object_new_string((const char*)sqlite3_column_text(q,1)));sqlite3_finalize(q);return reply(1,NULL,o);
- }
+ if(!strcmp(op,"chats.metadata"))return dc_chat_metadata(s,r);
  return fail("unsupported_operation");
 }
 char *dc_workspace_request(dc_store *s,const char *raw){

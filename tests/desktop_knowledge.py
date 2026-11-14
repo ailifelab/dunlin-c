@@ -26,7 +26,36 @@ with tempfile.TemporaryDirectory(prefix='dunlin-knowledge-') as tmp:
  doc=ok('knowledge.add',id='manual',name='C 开发手册',text=('SQLite 图关系与事务检索。不要把关键词当作完整事实。'*120),scope='global',scopeID='');hits=ok('knowledge.search',scope='global',scopeID='',query='图关系');assert any(h['kind']=='chunk' for h in hits)
  for h in hits:
   if h['kind']=='chunk':assert doc['body']['text'].encode()[h['body']['start']:h['body']['end']].decode()==h['body']['text']
+ assert ok('knowledge.list',scope='all',scopeID='')['rows'][0]['id']=='manual'
+ bad('knowledge.move',id='manual',revision=doc['revision'],scope='chat',scopeID='chat')
+ sql.execute("DELETE FROM knowledge_fts WHERE node IN(SELECT id FROM graph_nodes WHERE kind='chunk')");sql.commit()
+ assert not any(h['kind']=='chunk' for h in ok('knowledge.search',scope='global',scopeID='',query='图关系'))
+ ok('knowledge.reindex',id='manual',revision=doc['revision'])
+ assert any(h['kind']=='chunk' for h in ok('knowledge.search',scope='global',scopeID='',query='图关系'))
+ lib.dc_workspace_request.argtypes=[P,S];lib.dc_workspace_request.restype=P
+ p=lib.dc_workspace_request(db,json.dumps(dict(op='projects.create',id='p1',name='Fixture',path=str(work),instructions='',model='',policy='noTools',context=[],bookmark='')).encode())
+ assert p
+ try: assert json.loads(C.string_at(p))['ok']
+ finally:lib.dc_free(p)
+ changed=ok('knowledge.move',id='manual',revision=doc['revision'],scope='project',scopeID='p1')
+ bad('knowledge.move',id='manual',revision=doc['revision'],scope='global',scopeID='')
+ assert not any(h['kind']=='chunk' for h in ok('knowledge.search',scope='global',scopeID='',query='图关系'))
+ assert any(h['kind']=='chunk' for h in ok('knowledge.search',scope='project',scopeID='p1',query='图关系'))
+ doc=ok('knowledge.move',id='manual',revision=changed['revision'],scope='global',scopeID='')
+ print('PASS document index repaired from local sources, document and chunks change scope atomically, invalid scope and stale revision rejected')
  p=ok('knowledge.list',scope='global',scopeID='',limit=1);assert p['rows'][0]['id']=='manual' and not p['hasMore'];ok('knowledge.remove',id='manual',revision=doc['revision']);assert not any(h['kind']=='chunk' for h in ok('knowledge.search',scope='global',scopeID='',query='图关系'))
+ # A user can keep a project/global memory in its existing scope while deleting its source.
+ assert lib.dc_add_chat(db,b'keep',b'Keep',str(work).encode())
+ sql.execute("UPDATE chats SET state=? WHERE id='keep'",(json.dumps(state),));sql.commit()
+ keep=ok('memory.create',**dict(memory,id='keep-memory',sourceChat='keep'))
+ ok('memory.update',id=keep['id'],revision=keep['revision'],status='confirmed')
+ lib.dc_delete_chat_preserving_memories.argtypes=[P,S,C.c_int];lib.dc_delete_chat_preserving_memories.restype=C.c_int
+ assert lib.dc_delete_chat_preserving_memories(db,b'keep',1)
+ surviving=ok('graph.neighbors',id='keep-memory',type='derivedFrom')
+ assert len(surviving)==1 and surviving[0]['body']['quote']==source
+ keep=next(row for row in ok('memory.list',scope='global',scopeID='')['rows'] if row['id']=='keep-memory')
+ assert keep['independent']
+ ok('knowledge.remove',id=keep['id'],revision=keep['revision'])
  assert lib.dc_delete_chat(db,b'chat');assert ok('memory.list',scope='global',scopeID='')['rows']==[];assert ok('knowledge.search',scope='global',scopeID='',query='升级')==[]
  sql.close();lib.dc_close(db);db=lib.dc_open(str(b).encode());assert db;assert lib.dc_bind_identity(db,b'bob');assert not ok('knowledge.search',scope='global',scopeID='',query='升级');lib.dc_close(db)
  db=lib.dc_open(str(a).encode());assert db;assert lib.dc_bind_identity(db,b'alice');assert ok('memory.subjects');lib.dc_close(db)

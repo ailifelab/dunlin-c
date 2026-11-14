@@ -15,6 +15,24 @@ with tempfile.TemporaryDirectory(prefix='dunlin-extensions-') as tmp:
   r=req(op,**kw);assert not r['ok'],r;return r
  assert ok('compat.status')['state']=='off';assert not (private/'Compatibility').exists()
  ok('extensions.assets',path=str(assets))
+ # A real staging conflict must close installation and explain the failure on reopening.
+ conflict=private/'Compatibility';conflict.write_text('owned fixture')
+ assert bad('compat.enable',node='/opt/homebrew/bin/node')['error']=='compatibility_directory_unavailable'
+ status=ok('compat.status');assert status['state']=='faulted' and not status['healthy'] and not status['enabled']
+ lib.dc_close(db);db=lib.dc_open(str(private).encode());assert db
+ status=ok('compat.status');assert status['state']=='faulted' and status['error']=='compatibility_directory_unavailable'
+ assert ok('compat.disable')['state']=='off';conflict.unlink();ok('extensions.assets',path=str(assets))
+
+ candidate=ok('compat.detect',node='/opt/homebrew/bin/node')
+ assert candidate['action']=='reuse' and candidate['node'].endswith('/bin/node')
+ assert not ok('compat.status')['enabled'] and not ok('compat.status')['healthy']
+ mismatch=ok('compat.detect',node='/usr/bin/false')
+ assert mismatch['action']=='outdated' and ok('compat.status')['state']=='outdated'
+ blocked=conflict/'dsh'/'node-26.13.0-darwin-arm64'
+ assert blocked.is_dir();blocked.rmdir();blocked.touch()
+ assert bad('compat.enable',node='/usr/bin/false',confirmUpgrade=True)['error']=='runtime_directory_unavailable'
+ status=ok('compat.status');assert status['state']=='outdated' and not status['enabled']
+ blocked.unlink()
  plugin=root/'node';plugin.mkdir();manifest={'protocol':'dunlin.extension','major':1,'packageId':'node-fixture','version':'1.0.0','displayName':'Node fixture','kind':'plugin','engines':{'dunlin':'desktop@1','host':'node-dsh','dsh':'0.2.1-rc.3'},'entry':'index.ts','capabilities':['trusted-full-host'],'requires':['dunlin.contributions@1'],'dependencies':[]}
  (plugin/'dunlin.json').write_text(json.dumps(manifest));(plugin/'index.ts').write_text("export const name='fixture';export const inject=['dunlin'];export function apply(ctx){ctx.dunlin.registerCommand(ctx,'hello',p=>({text:'hello '+p.name}));ctx.dunlin.registerCommand(ctx,'fail',()=>{throw Error('owned failure')});ctx.dunlin.registerCommand(ctx,'fail2',()=>{throw TypeError('second private failure')});ctx.dunlin.contribute(ctx,'command',{kind:'command',title:'Hello',command:'hello',id:'untrusted-id',plugin:'untrusted-owner'})}")
  assert bad('extensions.import',path=str(plugin))['error']=='dsh_environment_not_ready';assert not ok('extensions.list')
@@ -22,7 +40,19 @@ with tempfile.TemporaryDirectory(prefix='dunlin-extensions-') as tmp:
  rows=ok('extensions.import',path=str(plugin));row=rows[0];assert not row['enabled'];ref=dict(source=row['source'],package=row['package'],version=row['version'])
  rows=ok('extensions.bind',**ref,enabled=True,acceptHostPermissions=True);assert rows[0]['active'];contributions=ok('extensions.contributions');assert contributions[0]['kind']=='command' and contributions[0]['plugin']==row['runtimeID'] and contributions[0]['id'].startswith(row['runtimeID']+':')
  r=ok('extensions.command',source=ref['source'],package=ref['package'],command='hello',arguments={'name':'Dunlin'});assert r['data']['text']=='hello Dunlin'
- bad('extensions.command',source=ref['source'],package=ref['package'],command='fail',arguments={});assert ok('extensions.list')[0]['versions'][0]['quarantined'];assert not ok('extensions.contributions');assert ok('extensions.faults')[0]['phase']=='command'
+ # A rejected update leaves the verified running version callable.
+ (plugin/'dunlin.json').write_text(json.dumps(dict(manifest,version='2.0.0')))
+ ok('extensions.import',path=str(plugin))
+ with sqlite3.connect(private/'conversations.sqlite') as registry:
+  candidate=pathlib.Path(registry.execute("SELECT path FROM extension_versions WHERE package=? AND version='2.0.0'",(ref['package'],)).fetchone()[0])
+ (candidate/'index.ts').write_text('// altered candidate')
+ assert bad('extensions.bind',**dict(ref,version='2.0.0'),enabled=True,acceptHostPermissions=True)['error']=='extension_integrity_failed'
+ previous=ok('extensions.list')[0]
+ assert previous['active'] and previous['enabled'] and previous['version']=='1.0.0'
+ assert next(v for v in previous['versions'] if v['version']=='2.0.0')['quarantined']
+ assert ok('extensions.command',source=ref['source'],package=ref['package'],command='hello',arguments={'name':'upgrade'})['data']['text']=='hello upgrade'
+ print('PASS damaged upgrade quarantined and logged; original active command still executes')
+ bad('extensions.command',source=ref['source'],package=ref['package'],command='fail',arguments={});assert next(v for v in ok('extensions.list')[0]['versions'] if v['version']==ref['version'])['quarantined'];assert not ok('extensions.contributions');assert ok('extensions.faults')[0]['phase']=='command'
  diagnostic=ok('extensions.faults')[0].get('diagnostic','');assert 'index.ts:1:' in diagnostic and 'Error' in diagnostic,diagnostic
  assert 'owned failure' not in diagnostic
  first_diagnostic=diagnostic
@@ -35,7 +65,7 @@ with tempfile.TemporaryDirectory(prefix='dunlin-extensions-') as tmp:
  audit.execute('DROP TRIGGER deny_fault_log');audit.commit();audit.close()
 
  bad('extensions.bind',**ref,enabled=True,acceptHostPermissions=True)
- ok('extensions.recover',**ref);assert not ok('extensions.list')[0]['versions'][0]['quarantined'];ok('extensions.bind',**ref,enabled=True,acceptHostPermissions=True);ok('extensions.bind',**ref,enabled=False)
+ ok('extensions.recover',**ref);assert not next(v for v in ok('extensions.list')[0]['versions'] if v['version']==ref['version'])['quarantined'];ok('extensions.bind',**ref,enabled=True,acceptHostPermissions=True);ok('extensions.bind',**ref,enabled=False)
  page=root/'page';page.mkdir();page_manifest=dict(manifest,packageId='page-fixture')
  (page/'dunlin.json').write_text(json.dumps(page_manifest))
  (page/'index.ts').write_text("export const inject=['dunlin'];export function apply(ctx){ctx.dunlin.registerCommand(ctx,'review',()=>({text:'reviewed'}));ctx.dunlin.contribute(ctx,'panel',{kind:'sidebar',title:'Project review',body:'Owned plugin page',actions:[{id:'review',title:'Review',command:'review'}],sections:[{id:'notes',title:'Notes',body:'No hidden execution'}]})}")

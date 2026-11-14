@@ -33,6 +33,17 @@ with tempfile.TemporaryDirectory(prefix='dunlin-skills-') as td:
  bind('chat','chat','enable');assert rows('chat','chat')[0]['enabled'] and rows('chat','chat')[0]['origin']=='chat'
  bad('skills.list',scope='project',scopeID='missing');bad('skills.bind',scope='chat',scopeID='chat',source=source,package=package,mode='enable',version='9.9.9')
  print('PASS import starts disabled, idempotent immutable snapshot, G/P/C inheritance and explicit version binding')
+ extra=root/'extra';extra.mkdir();(extra/'SKILL.md').write_text(body.replace('review-c','z-other-skill'))
+ other=ok('skills.import',path=str(extra))
+ pair=[{k:x[k] for k in ('source','package','version')} for x in (installed,other)]
+ invalid=[pair[0],dict(pair[1],version='missing')]
+ bad('skills.enableSelection',scope='project',scopeID='project',items=invalid)
+ assert not next(x for x in rows('project','project') if x['package']==package)['enabled']
+ ok('skills.enableSelection',scope='project',scopeID='project',items=pair)
+ assert {x['package'] for x in rows('project','project') if x['enabled']}=={package,other['package']}
+ assert not next(x for x in rows() if x['package']==other['package'])['enabled']
+ ok('skills.bind',scope='project',scopeID='project',source=other['source'],package=other['package'],version=other['version'],mode='inherit');bind('project','project','disable')
+ print('PASS multi-select applies both installed versions to reviewed scope only; one missing version rolls back the full selection')
  cfg=json.dumps({'base_url':f'http://127.0.0.1:{server.server_port}/v1','model':'fixture','protocol':'chat','stream':False,'system_prompt':'Base instructions','desktop_tools':'ask'}).encode()
  assert value(lib.dc_run(db,b'chat',cfg,b'perform review',None))['status']=='completed';assert any('Prefer evidence.' in x.get('content','') for x in requests[-1]['messages'])
  assert 'read_skill_resource' in [x['function']['name'] for x in requests[-1]['tools']]
