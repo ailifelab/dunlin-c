@@ -78,6 +78,8 @@ with tempfile.TemporaryDirectory() as tmp:
     lib.dc_close(db);db=lib.dc_open(str(state).encode())
     assert revoke('calendar')=='revoked' and access('calendar',issued['calendar'])==401
     assert received==['/calendar','/files','/calendar']
+    attempts=take(lib.dc_workspace_request(db,b'{"op":"grants.platform.attempts","id":"calendar"}'))
+    assert [(r['generation'],r['state']) for r in attempts['data']]==[(2,'revoked'),(1,'retry')]
     assert revoke('calendar')=='revoked' and received.count('/calendar')==2
     lib.dc_close(db)
     for server in services.values():server.shutdown();server.server_close()

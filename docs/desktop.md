@@ -13,7 +13,8 @@ Dunlin C，轻量运行核心为 Dunlin Compact，命令行外壳为 Dunlin Comm
 | `dunlin-command/src` | 命令行输入、输出与应用装配。 |
 | `dunlin-copilot/macos` | SwiftUI、AppKit、AVFoundation、Keychain、Xcode 工程和 macOS 打包。 |
 | `dunlin-copilot/esp32` | 设备端装配；不装配复杂桌面服务。 |
-| `dunlin-copilot/{linux,windows}` | 分平台客户端目录；目录存在不代表原生界面已经实现。 |
+| `dunlin-copilot/linux` | GTK 3 原生客户端，使用系统 Secret Service 和 WebKitGTK。支持 Ubuntu Xorg 与 Wayland。 |
+| `dunlin-copilot/windows` | Windows 客户端预留目录。 |
 | `desktop` | C 应用编排、权威会话、项目文件与命令、配置、扩展管理及恢复。 |
 | `include/dunlin` | 独立 C 模块和桌面接口；`compact/` 为轻量核心接口。 |
 | `modules/identity`, `modules/knowledge` | 身份路由、隔离存储、图语义记忆、来源和本地文本 RAG。 |
@@ -70,11 +71,15 @@ json-c、OpenSSL 和支持 WebSocket 的 curl；产物依赖闭包另行检查�
 本地 HTTP/WebSocket 模拟服务能验证真实 C 执行链、协议和受控工具效果，不能证明外部
 模型服务兼容性、实际麦克风/摄像头质量或其他平台等价。
 
-## 尚待完成的产品验收
+## v5.1 桌面验收范围
 
-原始录音录像与本地 ASR 的真实设备验收、更多外部权限适配、DSH 服务与依赖能力、
-全部设计页面和状态、实际设备及外部模型服务验证仍需分别完成。插件不满足所声明的服务、
-平台、版本或界面档位时应阻止安装/启用并展示原因；不承诺任意 Electron/React 插件无改造运行。
+macOS 客户端已逐项对照 v5.1 确认稿核验 88 个非通话页面及状态，并补验独立工具执行记录页在科技白和科技黑下的列表、详情和返回对话。
+
+Ubuntu 18.04 和 24.04 客户端均已在隔离的 X11 与 Wayland 会话中启动原生 GTK 窗口。验收操作覆盖切换模型后继续聊天、项目文件修改审批、命令授权、协作调度，以及权限撤销与重试。共享 C 服务的模型请求发往本地独立测试服务。OAuth 测试服务根据受保护资源的实际响应确认令牌已撤销。[Ubuntu 业务验收记录](../reports/v51-current/ubuntu-workflows.json)
+
+Ubuntu 图形验收使用无头显示服务。实体 Ubuntu 桌面及第三方厂商凭据下的模型、账号授权仍待实机核验。语音和视频通话保留为实验性 TODO，包括真实麦克风、摄像头、本地语音识别与实时通话服务。
+
+DSH 插件按声明的服务、平台、版本和界面能力检查兼容性。缺少必要能力时，客户端显示原因并阻止安装或启用。未经验证的插件在满足必要条件时可安装，商城保留谨慎安装提示。
 
 ## 本地输入转写
 

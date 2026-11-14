@@ -1,5 +1,6 @@
 #define _XOPEN_SOURCE 700
 #include "environment.h"
+#include "linux_runtime.h"
 #include "dunlin/content_hash.h"
 #include "dunlin/compact/json.h"
 #include <openssl/evp.h>
@@ -80,8 +81,17 @@ static int extract_node(const char *archive_path,const char *expected,const char
  }
  if(fd>=0)close(fd);if(gzclose(a)!=Z_OK)ok=0;if(!ok||!found||stopped(hooks)){unlink(destination);return 0;}return 1;
 }
-static char *configuration(const char *node,const char *home,const char *assets,int probe){
- J *c=json_object_new_object(),*args=json_object_new_array();json_object_object_add(c,"executable",json_object_new_string(node));json_object_object_add(c,"home",json_object_new_string(home));json_object_object_add(c,"timeoutMs",json_object_new_int(15000));
+static char *configuration(const char *node,const char *home,const char *assets,int probe,const dc_dsh_node_abi *abi){
+ J *c=json_object_new_object(),*args=json_object_new_array();json_object_object_add(c,"executable",json_object_new_string(abi->loader[0]?abi->loader:node));json_object_object_add(c,"home",json_object_new_string(home));json_object_object_add(c,"timeoutMs",json_object_new_int(15000));
+ if(abi->loader[0]){
+  json_object_array_add(args,json_object_new_string("--argv0"));
+  json_object_array_add(args,json_object_new_string(abi->launcher));
+  json_object_array_add(args,json_object_new_string("--library-path"));
+  json_object_array_add(args,json_object_new_string(abi->directory));
+  json_object_array_add(args,json_object_new_string(node));
+  json_object_array_add(args,json_object_new_string("--require"));
+  json_object_array_add(args,json_object_new_string(abi->preload));
+ }
  if(probe){json_object_array_add(args,json_object_new_string("-e"));json_object_array_add(args,json_object_new_string("process.stdout.write(JSON.stringify({protocol:'dunlin.worker',major:1,nonce:process.env.DUNLIN_WORKER_NONCE,methods:[],runtime:{node:process.versions.node}})+'\\n');process.stdin.resume()"));}
  else {json_object_object_add(c,"nativeBridge",json_object_new_boolean(1));char host[PATH_MAX],compat[PATH_MAX],toolchain[PATH_MAX];snprintf(host,sizeof host,"%s/hosts/node-dsh/worker.mjs",assets);snprintf(compat,sizeof compat,"%s/compat/dsh",assets);snprintf(toolchain,sizeof toolchain,"%s/toolchain",assets);json_object_array_add(args,json_object_new_string(host));json_object_array_add(args,json_object_new_string(compat));json_object_array_add(args,json_object_new_string(toolchain));}
  json_object_object_add(c,"args",args);char *raw=strdup(json_object_to_json_string_ext(c,JSON_C_TO_STRING_PLAIN));json_object_put(c);return raw;
@@ -103,8 +113,16 @@ static dc_worker *prepare(const char *directory,const char *assets,const char *s
  snprintf(runtime,sizeof runtime,"%s/node-26.13.0-%s",home,platform);if(!private_dir(runtime)){error="runtime_directory_unavailable";goto done;}snprintf(node,sizeof node,"%s/node",runtime);
  const char *candidate=selected&&*selected?selected:access(node,X_OK)?NULL:node;
  if(!candidate){const char *known[]={"/opt/homebrew/bin/node","/usr/local/bin/node","/usr/bin/node"};for(size_t i=0;i<3;i++)if(!access(known[i],X_OK)){candidate=known[i];break;}}
+ dc_dsh_node_abi abi={0};
  event(hooks,"probing");
- if(candidate){char *probe=configuration(candidate,home,asset_root,1),*detail=NULL;worker=probe?dc_worker_open(probe,hooks,&detail):NULL;free(probe);free(detail);char *cap=worker?dc_worker_capabilities(worker):NULL;J *hello=cap?dunlin_json_parse(cap,strlen(cap)):NULL;free(cap);const char *version=str(get(hello,"runtime"),"node");int supported=eq(version,"26.13.0");json_object_put(hello);dc_worker_close(worker);worker=NULL;
+#ifdef __linux__
+ if(candidate){
+  error=dc_dsh_linux_node_abi(candidate,home,detect_only,hooks,fetch,&abi);
+  if(!error&&abi.loader[0])error=dc_dsh_linux_child_launcher(candidate,home,detect_only,&abi);
+  if(error)goto done;
+ }
+#endif
+ if(candidate){char *probe=configuration(candidate,home,asset_root,1,&abi),*detail=NULL;worker=probe?dc_worker_open(probe,hooks,&detail):NULL;free(probe);free(detail);char *cap=worker?dc_worker_capabilities(worker):NULL;J *hello=cap?dunlin_json_parse(cap,strlen(cap)):NULL;free(cap);const char *version=str(get(hello,"runtime"),"node");int supported=eq(version,"26.13.0");json_object_put(hello);dc_worker_close(worker);worker=NULL;
   if(stopped(hooks)){error="cancelled";goto done;}
   if(supported){if(!realpath(candidate,node)){error="node_unavailable";goto done;}}
   else {if(!upgrade){error="engine_upgrade_confirmation_required";goto done;}candidate=NULL;snprintf(node,sizeof node,"%s/node",runtime);}
@@ -116,7 +134,15 @@ static dc_worker *prepare(const char *directory,const char *assets,const char *s
   snprintf(url,sizeof url,"https://nodejs.org/dist/v26.13.0/node-v26.13.0-%s.tar.gz",platform);event(hooks,"downloading");if(!fetch(url,sha,archive,hooks)){error=stopped(hooks)?"cancelled":"engine_download_or_digest_failed";goto done;}
   snprintf(binary,sizeof binary,"%s/node-XXXXXX",runtime);fd=mkstemp(binary);if(fd<0){unlink(archive);error="engine_staging_failed";goto done;}close(fd);unlink(binary);snprintf(entry,sizeof entry,"node-v26.13.0-%s/bin/node",platform);event(hooks,"verifying");int ok=extract_node(archive,entry,binary,hooks);unlink(archive);if(!ok){unlink(binary);error=stopped(hooks)?"cancelled":"engine_archive_invalid";goto done;}snprintf(staged,sizeof staged,"%s",binary);
  }
- event(hooks,"starting");{char *config=configuration(staged[0]?staged:node,home,asset_root,0),*detail=NULL;worker=config?dc_worker_open(config,hooks,&detail):NULL;free(config);error=worker?NULL:"compatibility_handshake_failed";free(detail);if(worker){char *raw=dc_worker_capabilities(worker);J *hello=raw?dunlin_json_parse(raw,strlen(raw)):NULL;free(raw);J *runtime_info=get(hello,"runtime");if(!eq(str(runtime_info,"node"),"26.13.0")||!eq(str(runtime_info,"commit"),"1f81c047fc48fa190a683e469daa699857e9afe8")||!eq(str(runtime_info,"cordis"),"4.0.5")){error="compatibility_version_mismatch";dc_worker_close(worker);worker=NULL;}json_object_put(hello);}}
+#ifdef __linux__
+ if(staged[0]){
+  memset(&abi,0,sizeof abi);
+  error=dc_dsh_linux_node_abi(staged,home,detect_only,hooks,fetch,&abi);
+  if(!error&&abi.loader[0])error=dc_dsh_linux_child_launcher(node,home,detect_only,&abi);
+  if(error)goto done;
+ }
+#endif
+ event(hooks,"starting");{char *config=configuration(staged[0]?staged:node,home,asset_root,0,&abi),*detail=NULL;worker=config?dc_worker_open(config,hooks,&detail):NULL;free(config);error=worker?NULL:"compatibility_handshake_failed";free(detail);if(worker){char *raw=dc_worker_capabilities(worker);J *hello=raw?dunlin_json_parse(raw,strlen(raw)):NULL;free(raw);J *runtime_info=get(hello,"runtime");if(!eq(str(runtime_info,"node"),"26.13.0")||!eq(str(runtime_info,"commit"),"1f81c047fc48fa190a683e469daa699857e9afe8")||!eq(str(runtime_info,"cordis"),"4.0.5")){error="compatibility_version_mismatch";dc_worker_close(worker);worker=NULL;}json_object_put(hello);}}
  if(worker&&staged[0]){
   if(stopped(hooks)||rename(staged,node)){
    error=stopped(hooks)?"cancelled":"engine_staging_failed";

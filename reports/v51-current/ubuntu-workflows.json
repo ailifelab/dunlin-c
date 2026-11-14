@@ -1,0 +1,41 @@
+{
+  "version": "v5.1",
+  "platform": "Ubuntu arm64",
+  "source": "Frozen public candidate, independently compiled from source in each target release and tested with its pinned desktop dependencies.",
+  "environment": {
+    "18.04": {
+      "gtk": "3.22",
+      "sessions": [
+        "X11 (Xvfb)",
+        "Wayland (Weston headless)"
+      ],
+      "result": "passed"
+    },
+    "24.04": {
+      "gtk": "3.24",
+      "sessions": [
+        "X11 (Xvfb)",
+        "Wayland (Weston headless)"
+      ],
+      "result": "passed"
+    }
+  },
+  "test_services": "Isolated HTTP model provider, separately issued HTTPS OAuth tokens and GNOME Secret Service. All service responses and resulting store changes were checked.",
+  "verified": [
+    "Two configured models retained the previous conversation across a model switch. Provider credentials were retrieved from Secret Service and absent from the profile files.",
+    "History search returned the original text. Confirmed memories, named household subjects, local knowledge reindexing and scoped Skills controls operated on populated lists.",
+    "A locally installed Python extraction strategy compacted a real request. The next model request included the selected original passage verbatim.",
+    "Chat text was exported as Markdown and JSON. Reviewed JSON restored into a new ordinary chat. Cancelling cleanup preserved the reviewed chats; confirming removed them.",
+    "A single OAuth revocation changed access to the protected resource from HTTP 200 to 401 and removed its saved credential.",
+    "A cross-service batch received HTTP 503 for one service and HTTP 200 for another. The successful item was settled independently.",
+    "Retry from history and from the batch receipt reached only the failed service. After confirmation, its protected resource returned HTTP 401 and its credential was removed.",
+    "After reopening the store, read-only permission details displayed the failed and successful attempts, even while the client was busy. Tool receipts retained the selected operation and its timing."
+  ],
+  "additional_coverage": [
+    "Released Catppuccin 0.2.6 with the actual Node runtime on Ubuntu 24.04: four themes, native selection, web preference callback, GTK color application and fallback after disable."
+  ],
+  "scope": [
+    "Headless X11 and Wayland sessions on arm64.",
+    "Audio and video calls remain experimental and unfinished."
+  ]
+}

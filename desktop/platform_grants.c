@@ -100,8 +100,8 @@ J *dc_platform_grants_request(dc_store *s,J *r){
  const char *op=str(r,"op");char *principal=owner(s);if(!principal)return reply("identity_not_bound",NULL);
  dl_grant_broker *b=dl_grant_open(s->db,principal,0);free(principal);if(!b)return reply("storage_error",NULL);
  dl_grant_adapter adapter={"macos-tcc",s,revoke_tcc};dl_grant_register(b,&adapter);J *out=NULL;
- if(op&&!strcmp(op,"grants.platform.list")){
-  char *raw=dl_grant_list(b,"");J *data=raw?dunlin_json_parse(raw,strlen(raw)):NULL;dl_grant_free(raw);out=reply(data?NULL:"storage_error",data);
+ if(op&&(!strcmp(op,"grants.platform.list")||!strcmp(op,"grants.platform.attempts"))){
+  char *raw=!strcmp(op,"grants.platform.list")?dl_grant_list(b,""):dl_grant_attempts(b,str(r,"id"));J *data=raw?dunlin_json_parse(raw,strlen(raw)):NULL;dl_grant_free(raw);out=reply(data?NULL:"storage_error",data);
  }else if(op&&!strcmp(op,"grants.platform.record")){
   const char *call=str(r,"call"),*resource=str(r,"resource");sqlite3_stmt *q=NULL;sqlite3_prepare_v2(s->db,"SELECT chat FROM media_calls WHERE id=? AND state IN('connecting','live')",-1,&q,NULL);if(q)sqlite3_bind_text(q,1,call?call:"",-1,SQLITE_TRANSIENT);char *chat=q&&sqlite3_step(q)==SQLITE_ROW?strdup((const char*)sqlite3_column_text(q,0)):NULL;sqlite3_finalize(q);
   if(!chat||!call||strlen(call)>64||!resource||(strcmp(resource,"microphone")&&strcmp(resource,"camera")&&strcmp(resource,"speech"))||!s->platform_bundle)out=reply("invalid_call_permission",NULL);

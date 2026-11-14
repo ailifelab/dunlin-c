@@ -217,8 +217,60 @@ private struct ToolGrantReceiptView: View {
 struct PlatformGrant:Decodable,Identifiable {
   let id:String,chat:String,protocolName:String,scope:String,state:String
   let started:Int64,expires:Int64,revoked:Int64
-  enum CodingKeys:String,CodingKey {case id,chat,scope,state,started,expires,revoked;case protocolName="protocol"}
+  let generation:Int64?
+  enum CodingKeys:String,CodingKey {case id,chat,scope,state,started,expires,revoked,generation;case protocolName="protocol"}
 }
+private struct RevocationAttempt: Decodable, Identifiable {
+  let generation: Int64
+  let started: Int64
+  let state: String
+  var id: Int64 { generation }
+}
+
+private struct RevocationHistory: View {
+  @EnvironmentObject var store: WorkspaceStore
+  let grant: PlatformGrant
+  @State private var attempts: [RevocationAttempt] = []
+  @State private var requestID = UUID()
+  @State private var error = ""
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      if !attempts.isEmpty {
+        Text("撤销尝试").font(.headline)
+        ScrollView {
+          VStack(alignment: .leading, spacing: 6) {
+            ForEach(attempts) { attempt in
+              HStack {
+                Text("第 \(attempt.generation) 次 · \(outcome(attempt.state))")
+                Spacer()
+                Text(Date(timeIntervalSince1970: Double(attempt.started)), format: .dateTime)
+                  .font(.caption).foregroundStyle(.secondary)
+              }.accessibilityIdentifier("grant.attempt.\(attempt.generation)")
+            }
+          }
+        }.frame(height: min(160, CGFloat(attempts.count) * 30))
+      }
+      if !error.isEmpty { Text(error).font(.callout).foregroundStyle(.orange) }
+    }.onChange(of: "\(grant.id)/\(grant.state)/\(grant.generation ?? 0)", initial: true) { _,_ in
+      let selected=UUID();requestID=selected
+      store.readLocalView(["op":"grants.platform.attempts","id":grant.id], as:[RevocationAttempt].self) { result in
+        guard selected==requestID else { return }
+        attempts=result.data ?? [];error=result.ok ? "" : "暂时无法读取撤销尝试。"
+      }
+    }
+  }
+  private func outcome(_ state: String) -> String {
+    switch state {
+    case "revoked": return grant.protocolName == "oauth-revocation" ? "服务商已确认撤销" : "系统已确认撤销"
+    case "retry": return "未成功，可重试"
+    case "needs_user": return "需要手动处理"
+    case "revoking": return "撤销进行中"
+    default: return "撤销结果待核对"
+    }
+  }
+}
+
 private struct RemoteAccountSecret: Codable {
   let endpoint: String
   let token: String
@@ -397,6 +449,7 @@ struct PlatformGrantList:View {
             }
             Divider();ReceiptLine(label:"原授权时限",value:"\(max(0,current.expires-current.started)) 秒")
           }.padding(.horizontal,16).background(store.themeSurface,in:RoundedRectangle(cornerRadius:10))
+          RevocationHistory(grant:current)
           if !receiptError.isEmpty {Text(receiptError).foregroundStyle(.orange)}
           if remote && current.state=="needs_user" {
             Text("请在服务商账号的授权管理页面移除本应用。").foregroundStyle(.secondary)
@@ -471,7 +524,7 @@ struct PlatformGrantList:View {
       return status == .authorized ? "系统权限仍已授权":"系统权限当前未授权"
     }
   }
-  private func reload() {store.workspaceRequest(["op":"grants.platform.list"],as:[PlatformGrant].self) {r in if r.ok {rows=(r.data ?? []).filter{chat == nil || $0.chat == chat}}else {error="系统权限记录暂不可读取。"}}}
+  private func reload() {store.readLocalView(["op":"grants.platform.list"],as:[PlatformGrant].self) {r in if r.ok {rows=(r.data ?? []).filter{chat == nil || $0.chat == chat}}else {error="系统权限记录暂不可读取。"}}}
   private func revoke(_ row:PlatformGrant) {
     revoking=true;error="";receiptError=""
     store.revokePlatformGrant(row) { reply in

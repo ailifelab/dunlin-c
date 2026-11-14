@@ -1,0 +1,9 @@
+{
+  global:
+    dc_*;
+    dl_*;
+    dunlin_*;
+    json_object_*;
+    json_tokener_*;
+  local: *;
+};

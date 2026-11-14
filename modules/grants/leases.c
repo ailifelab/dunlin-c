@@ -12,7 +12,13 @@ static int done(sqlite3_stmt *q){int ok=q&&sqlite3_step(q)==SQLITE_DONE;sqlite3_
 dl_grant_broker *dl_grant_open(sqlite3 *db,const char *principal,int recover){
  if(!db||!valid(principal,128))return NULL;
  dl_grant_broker *b=calloc(1,sizeof *b);if(!b)return NULL;b->db=db;b->principal=strdup(principal);if(!b->principal){free(b);return NULL;}
- if(sqlite3_exec(db,"CREATE TABLE IF NOT EXISTS capability_leases(id TEXT PRIMARY KEY,principal TEXT NOT NULL,chat TEXT NOT NULL,protocol TEXT NOT NULL,resource TEXT NOT NULL,scope TEXT NOT NULL,started INTEGER NOT NULL,expires INTEGER NOT NULL,state TEXT NOT NULL DEFAULT 'active',generation INTEGER NOT NULL DEFAULT 0,revoke_started INTEGER,revoked INTEGER);CREATE INDEX IF NOT EXISTS capability_owner ON capability_leases(principal,chat);",NULL,NULL,NULL)!=SQLITE_OK){dl_grant_close(b);return NULL;}
+ if(sqlite3_db_readonly(db,"main")!=1 && sqlite3_exec(db,"CREATE TABLE IF NOT EXISTS capability_leases(id TEXT PRIMARY KEY,principal TEXT NOT NULL,chat TEXT NOT NULL,protocol TEXT NOT NULL,resource TEXT NOT NULL,scope TEXT NOT NULL,started INTEGER NOT NULL,expires INTEGER NOT NULL,state TEXT NOT NULL DEFAULT 'active',generation INTEGER NOT NULL DEFAULT 0,revoke_started INTEGER,revoked INTEGER);CREATE INDEX IF NOT EXISTS capability_owner ON capability_leases(principal,chat);"
+    "CREATE TABLE IF NOT EXISTS capability_revoke_attempts(lease TEXT NOT NULL,generation INTEGER NOT NULL,started INTEGER NOT NULL,state TEXT NOT NULL,PRIMARY KEY(lease,generation));"
+    "CREATE TRIGGER IF NOT EXISTS capability_attempt_start AFTER UPDATE OF state ON capability_leases WHEN NEW.state='revoking' BEGIN "
+    "INSERT INTO capability_revoke_attempts(lease,generation,started,state) VALUES(NEW.id,NEW.generation,NEW.revoke_started,NEW.state);END;"
+    "CREATE TRIGGER IF NOT EXISTS capability_attempt_settle AFTER UPDATE OF state ON capability_leases WHEN OLD.state='revoking' AND NEW.state!='revoking' BEGIN "
+    "UPDATE capability_revoke_attempts SET state=NEW.state WHERE lease=NEW.id AND generation=NEW.generation;END;"
+    "CREATE TRIGGER IF NOT EXISTS capability_attempt_delete AFTER DELETE ON capability_leases BEGIN DELETE FROM capability_revoke_attempts WHERE lease=OLD.id;END;",NULL,NULL,NULL)!=SQLITE_OK){dl_grant_close(b);return NULL;}
  if(recover){sqlite3_stmt *q=prep(b,"UPDATE capability_leases SET state=CASE WHEN state='revoking' THEN 'unknown' ELSE 'expired' END WHERE principal=? AND state IN('revoking','active')");if(q)text(q,1,principal);if(!done(q)){dl_grant_close(b);return NULL;}}
  return b;
 }
@@ -51,4 +57,19 @@ char *dl_grant_list(dl_grant_broker *b,const char *chat){
  if(!b||!chat||strlen(chat)>128)return NULL;sqlite3_stmt *q=prep(b,"SELECT id,chat,protocol,scope,state,started,expires,generation,COALESCE(revoke_started,0),COALESCE(revoked,0) FROM capability_leases WHERE principal=? AND (?='' OR chat=?) ORDER BY started DESC,rowid DESC LIMIT 200");if(!q)return NULL;text(q,1,b->principal);text(q,2,chat);text(q,3,chat);
  struct json_object *rows=json_object_new_array();const char *keys[]={"id","chat","protocol","scope","state","started","expires","generation","revokeStarted","revoked"};int rc;
  while((rc=sqlite3_step(q))==SQLITE_ROW){struct json_object *r=json_object_new_object();for(int i=0;i<10;i++)json_object_object_add(r,keys[i],i<5?json_object_new_string((const char*)sqlite3_column_text(q,i)):json_object_new_int64(sqlite3_column_int64(q,i)));json_object_array_add(rows,r);}sqlite3_finalize(q);char *out=rc==SQLITE_DONE?strdup(json_object_to_json_string_ext(rows,JSON_C_TO_STRING_PLAIN)):NULL;json_object_put(rows);return out;
+}
+
+char *dl_grant_attempts(dl_grant_broker *b,const char *id){
+ if(!b||!valid(id,128))return NULL;
+ sqlite3_stmt *q=prep(b,"SELECT a.generation,a.started,a.state FROM capability_revoke_attempts a "
+     "JOIN capability_leases l ON l.id=a.lease WHERE l.principal=? AND l.id=? ORDER BY a.generation DESC");
+ if(!q)return NULL;
+ text(q,1,b->principal);text(q,2,id);
+ struct json_object *rows=json_object_new_array();int rc;
+ while((rc=sqlite3_step(q))==SQLITE_ROW){struct json_object *r=json_object_new_object();
+    json_object_object_add(r,"generation",json_object_new_int64(sqlite3_column_int64(q,0)));
+    json_object_object_add(r,"started",json_object_new_int64(sqlite3_column_int64(q,1)));
+    json_object_object_add(r,"state",json_object_new_string((const char *)sqlite3_column_text(q,2)));json_object_array_add(rows,r);}
+ sqlite3_finalize(q);
+ char *out=rc==SQLITE_DONE?strdup(json_object_to_json_string_ext(rows,JSON_C_TO_STRING_PLAIN)):NULL;json_object_put(rows);return out;
 }

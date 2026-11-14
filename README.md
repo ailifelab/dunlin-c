@@ -15,7 +15,8 @@ Dunlin Command 调用共享运行时，负责终端交互和审批呈现。Dunli
 ```mermaid
 flowchart TB
     Command["Dunlin Command · 命令行"]
-    Mac["Dunlin Copilot · macOS"]
+    Mac["Dunlin Copilot · macOS / SwiftUI"]
+    Ubuntu["Dunlin Copilot · Ubuntu / GTK 3"]
     Device["Dunlin Copilot · ESP32 / ESP32-S3"]
     Desktop["desktop · 桌面编排服务"]
     Modules["modules · 独立 C 模块"]
@@ -28,6 +29,7 @@ flowchart TB
     Model["外部模型服务"]
     Command --> Runtime
     Mac --> Desktop
+    Ubuntu --> Desktop
     Desktop --> Modules
     Desktop --> Runtime
     Desktop --> Hosts
@@ -53,7 +55,8 @@ flowchart TB
 | `dunlin-command/src/` | 命令行入口、终端交互、显示和审批策略 |
 | `dunlin-copilot/macos/` | macOS 原生客户端、Xcode 工程和 SwiftUI 源码 |
 | `dunlin-copilot/esp32/` | 设备 Agent、串口、IO、Python 适配与 ESP-IDF 板级工程 |
-| `dunlin-copilot/linux/`、`dunlin-copilot/windows/` | 预留的原生客户端目录 |
+| `dunlin-copilot/linux/` | Ubuntu GTK 3 客户端、Xorg / Wayland 验收与 Debian 打包 |
+| `dunlin-copilot/windows/` | Windows 客户端预留目录 |
 | `dunlin-copilot/assets/` | 客户端共享图标资源 |
 | `desktop/` | 桌面 C 编排、来源存储、项目与会话管理 |
 | `modules/` | 可独立组合的身份、上下文、技能、知识、索引、附件、工具记录、轨迹与文件历史等 C 模块 |
@@ -83,7 +86,7 @@ flowchart TB
 | 设备 | ESP32 / ESP32-S3 串口与板级 IO、远程模型调用和有界对话记忆；具体能力随目标固件组合 |
 | Harness 兼容 | 固定版本的来源与行为对照，以及独立的可选宿主接入；逐步扩展兼容范围 |
 
-项目仍在开发中。macOS 客户端的完整产品验收、多 Agent 协作、媒体能力和扩展完整生命周期尚有待完成；Linux / Windows 原生 GUI 目录目前预留。协议适配、组件测试和单个平台的实测分别对应各自范围，不代表完整 Harness 兼容或所有平台功能等价。
+macOS 和 Ubuntu 共享聊天、项目、协作调度及扩展服务。两端的语音和视频通话列为实验性 TODO。Ubuntu 的构建和验收方法见[客户端文档](dunlin-copilot/linux/README.md)。
 
 ## 开发状态与插件清单
 

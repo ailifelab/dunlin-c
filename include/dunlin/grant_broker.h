@@ -26,5 +26,7 @@ int dl_grant_revoke(dl_grant_broker *,const char *id,int64_t now);
 /* Owned JSON array includes actual state, generation, start/expiry/revoke times.
  * free with dl_grant_free. No resource reference or secret in public records. */
 char *dl_grant_list(dl_grant_broker *,const char *chat);
+/* Prior attempts remain available after a successful retry. No credentials or request bodies. */
+char *dl_grant_attempts(dl_grant_broker *,const char *id);
 void dl_grant_free(void *);
 #endif

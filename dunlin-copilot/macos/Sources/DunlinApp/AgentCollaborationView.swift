@@ -404,6 +404,8 @@ extension WorkspaceStore {
       }
       let worker=NativeStoreReference(raw:rawWorker)
       settings["stream"]=true;settings["show_reasoning"]=true;settings["desktop_tools"]=policy
+      // A scheduled task has no interactive file selection for this turn.
+      settings["desktop_project_context"] = [[String: String]]()
       if knowledgePolicy.memory || knowledgePolicy.rag {settings["desktop_knowledge"]=["memory":knowledgePolicy.memory,"rag":knowledgePolicy.rag]}
       if let budget=profile.contextRange {
         settings["max_tokens"]=Int(budget.output)

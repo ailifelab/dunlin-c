@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Dunlin Copilot
+Exec=dunlin-copilot
+Icon=org.dunlin.copilot
+Terminal=false
+StartupNotify=true
+Categories=Utility;Development;

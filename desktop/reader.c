@@ -29,7 +29,7 @@ char *dc_read_view(const char *directory,const char *raw){
  else if(op&&(!strcmp(op,"receipts.list")||!strcmp(op,"receipts.detail")||!strcmp(op,"receipts.status")||!strcmp(op,"receipts.pending")))result=dc_file_history_request(&s,request);
  else if(op&&(!strcmp(op,"media.recording")||!strcmp(op,"media.list")||!strcmp(op,"media.items")||!strcmp(op,"media.frames")||!strcmp(op,"media.frame.read")))result=dc_media_request(&s,request);
  else if(op&&!strcmp(op,"chats.metadata"))result=dc_chat_metadata(&s,request);
- else if(op&&!strcmp(op,"grants.list"))result=dc_grants_request(&s,request);
+ else if(op&&(!strcmp(op,"grants.list")||!strcmp(op,"grants.platform.list")||!strcmp(op,"grants.platform.attempts")))result=dc_grants_request(&s,request);
  else if(op&&(!strcmp(op,"agents.list")||!strcmp(op,"agents.next")||!strcmp(op,"agents.pending")||!strcmp(op,"agents.nativePending")||!strcmp(op,"agents.messages")||!strcmp(op,"agents.members")))result=dc_agents_request(&s,request);
  else if(op&&!strcmp(op,"helpers.pending"))result=dc_helpers_pending(&s);
  else if(op&&(!strcmp(op,"config.list")||!strcmp(op,"config.model")))result=dc_config_request(&s,request);
